@@ -1,0 +1,46 @@
+{
+  "_comment": "このファイルはテンプレート。セットアップ時に {{HUB_PATH}} を実際の絶対パスに置換して .claude/settings.json として保存する（Claudeがセットアップ中に自動でやる）",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 {{HUB_PATH}}/dashboard/log_hook.py pre_tool"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 {{HUB_PATH}}/dashboard/log_hook.py post_tool"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash {{HUB_PATH}}/scripts/claude_md_sync_hook.sh"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 {{HUB_PATH}}/dashboard/log_hook.py stop"
+          }
+        ]
+      }
+    ]
+  }
+}

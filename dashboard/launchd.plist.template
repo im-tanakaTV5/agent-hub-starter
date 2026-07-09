@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.{{USER_NAME}}.agent-hub.dashboard</string>
+
+	<!-- 司令塔ダッシュボード（http://localhost:8765）。ログイン時に自動起動し、落ちても再起動する -->
+	<key>ProgramArguments</key>
+	<array>
+		<string>{{PYTHON_PATH}}</string>
+		<string>{{HUB_PATH}}/dashboard/server.py</string>
+	</array>
+
+	<key>WorkingDirectory</key>
+	<string>{{HUB_PATH}}</string>
+
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PATH</key>
+		<string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+	</dict>
+
+	<!-- ログイン時に起動 -->
+	<key>RunAtLoad</key>
+	<true/>
+
+	<!-- クラッシュ・PC再起動後も常に生かす -->
+	<key>KeepAlive</key>
+	<true/>
+
+	<!-- 落ちた直後に叩き続けないよう、再起動の最小間隔を10秒に -->
+	<key>ThrottleInterval</key>
+	<integer>10</integer>
+
+	<key>StandardOutPath</key>
+	<string>{{HUB_PATH}}/dashboard/logs/launchd.out.log</string>
+	<key>StandardErrorPath</key>
+	<string>{{HUB_PATH}}/dashboard/logs/launchd.err.log</string>
+</dict>
+</plist>

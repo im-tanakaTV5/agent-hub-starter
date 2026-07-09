@@ -1,0 +1,27 @@
+{
+  "_comment": "セットアップ完了の目印 兼 環境設定ファイル。セットアップウィザードがこの example を元に hub.config.json を生成する。手で編集してもよい",
+  "owner": {
+    "name": "（あなたの名前）",
+    "call_name": "（Claudeからの呼ばれ方。例: たろうさん）"
+  },
+  "paths": {
+    "hub": "/Users/yourname/agent-hub",
+    "obsidian_vault": "",
+    "_obsidian_hint": "Obsidian連携を使う場合のみ。例: /Users/yourname/Library/Mobile Documents/iCloud~md~obsidian/Documents/（Vault名）"
+  },
+  "integrations": {
+    "obsidian": false,
+    "google_calendar": false,
+    "google_calendar_id": "",
+    "notion": false,
+    "claude_in_chrome": false,
+    "dashboard": false,
+    "antigravity": false
+  },
+  "weekly_proposal": {
+    "enabled": true,
+    "trigger": "「週次提案」と入力したときだけ実行（自動起動なし）",
+    "report_retention_days": 5
+  },
+  "setup_completed": ""
+}

@@ -1,0 +1,29 @@
+# ===== 導入者の個人データは絶対にコミットしない =====
+# セットアップで生成される個人設定
+hub.config.json
+.claude/settings.json
+.claude/settings.local.json
+.agents/hooks.json
+.agents/AGENTS.md
+
+# 個人の部門・データ・レポート（構造だけ残す）
+my-hub/*
+!my-hub/.gitkeep
+agents/*
+!agents/.gitkeep
+shared/*
+!shared/.gitkeep
+reports/*
+!reports/.gitkeep
+
+# ダッシュボードの実行時ファイル
+dashboard/logs/*
+!dashboard/logs/.gitkeep
+dashboard/session_labels.json
+dashboard/system_stats.json
+dashboard/server.log
+dashboard/__pycache__/
+
+# OS
+.DS_Store
+__pycache__/

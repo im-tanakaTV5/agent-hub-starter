@@ -1,0 +1,1544 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agent Hub Dashboard</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:#0f0f0f; --bg2:#1a1a1a; --bg3:#222; --border:#2a2a2a;
+      --text:#e8e8e8; --text-dim:#888; --text-dimmer:#555;
+      --blue:#7aadff; --green:#4caf6e; --yellow:#d4a437;
+      --red:#e05252; --purple:#c87fff; --cyan:#52c8c8;
+      --font-mono:'SF Mono','Menlo','Consolas',monospace;
+      --header-h:52px; --tabs-h:42px;
+    }
+    body {
+      background:var(--bg); color:var(--text);
+      font-family:'Helvetica Neue',Arial,'Hiragino Kaku Gothic ProN',sans-serif;
+      font-size:14px; line-height:1.7;
+      min-height:100vh; overflow:hidden;
+    }
+
+    /* HEADER */
+    header {
+      display:flex; align-items:center; gap:12px;
+      padding:0 24px; height:var(--header-h);
+      border-bottom:1px solid var(--border);
+      background:rgba(15,15,15,.97); backdrop-filter:blur(8px);
+    }
+    header h1 { font-size:1rem; font-weight:700; color:#fff; letter-spacing:.03em; }
+    .live-dot { width:7px;height:7px;border-radius:50%;background:var(--text-dimmer);transition:background .5s; }
+    .live-dot.active { background:var(--green);box-shadow:0 0 6px var(--green); }
+    .live-label { font-size:.72rem;color:var(--text-dimmer);font-family:var(--font-mono); }
+    .live-label.active { color:var(--green); }
+
+    /* TABS */
+    .tabs {
+      display:flex; gap:2px; padding:0 24px;
+      border-bottom:1px solid var(--border); height:var(--tabs-h); align-items:flex-end;
+    }
+    .tab-btn {
+      padding:10px 18px; font-size:.83rem; font-weight:600;
+      color:var(--text-dim); background:none; border:none;
+      border-bottom:2px solid transparent; cursor:pointer;
+      transition:color .2s,border-color .2s; letter-spacing:.04em;
+    }
+    .tab-btn:hover { color:var(--text); }
+    .tab-btn.active { color:var(--blue); border-bottom-color:var(--blue); }
+
+    /* PANELS */
+    .panel { display:none; height:calc(100vh - var(--header-h) - var(--tabs-h)); overflow:hidden; }
+    .panel.active { display:flex; flex-direction:column; }
+
+    /* ── MONITOR ─────────────────────────────────── */
+    .monitor-stat-bar {
+      display:flex; gap:20px; align-items:center;
+      padding:8px 20px; border-bottom:1px solid var(--border);
+      font-family:var(--font-mono); font-size:.75rem;
+      background:var(--bg2); flex-shrink:0;
+    }
+    .stat-item { display:flex; gap:6px; align-items:baseline; }
+    .stat-label { color:var(--text-dimmer); }
+    .stat-value { color:var(--text); font-weight:600; }
+    .monitor-body { display:grid; grid-template-columns:220px 1fr; flex:1; min-height:0; overflow:hidden; }
+
+    /* chat */
+    .chat-col { display:flex;flex-direction:column;border-right:1px solid var(--border);min-height:0; }
+    .chat-col-header {
+      padding:10px 16px; font-size:.72rem;font-weight:600;letter-spacing:.07em;
+      color:var(--text-dimmer);text-transform:uppercase;
+      border-bottom:1px solid var(--border);flex-shrink:0;
+    }
+    .chat-messages { flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:14px; }
+    .chat-messages::-webkit-scrollbar{width:4px}
+    .chat-messages::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+    .msg{display:flex;flex-direction:column;max-width:86%}
+    .msg.user{align-self:flex-end;align-items:flex-end}
+    .msg.assistant{align-self:flex-start;align-items:flex-start}
+    .msg-role{font-size:.68rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px}
+    .msg.user .msg-role{color:var(--blue)}
+    .msg.assistant .msg-role{color:var(--purple)}
+    .msg-bubble{padding:10px 14px;border-radius:12px;font-size:.87rem;line-height:1.65;white-space:pre-wrap;word-break:break-word}
+    .msg.user .msg-bubble{background:#0d1e36;border:1px solid #1a3a60;color:#c8deff;border-bottom-right-radius:4px}
+    .msg.assistant .msg-bubble{background:var(--bg2);border:1px solid var(--border);color:var(--text);border-bottom-left-radius:4px}
+    .msg.assistant .msg-bubble code{font-family:var(--font-mono);font-size:.82em;background:var(--bg3);padding:1px 5px;border-radius:3px;color:var(--cyan)}
+    .msg.assistant .msg-bubble strong{color:#fff;font-weight:600}
+    .msg-time{font-size:.65rem;color:var(--text-dimmer);font-family:var(--font-mono);margin-top:4px}
+    .typing-indicator{display:flex;gap:5px;align-items:center;padding:10px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:12px;border-bottom-left-radius:4px;width:fit-content}
+    .typing-dot{width:6px;height:6px;border-radius:50%;background:var(--text-dim);animation:bounce 1.4s ease-in-out infinite}
+    .typing-dot:nth-child(2){animation-delay:.2s}
+    .typing-dot:nth-child(3){animation-delay:.4s}
+    @keyframes bounce{0%,80%,100%{transform:scale(.6);opacity:.4}40%{transform:scale(1);opacity:1}}
+    .chat-input-area{padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:10px;align-items:flex-end;background:var(--bg2);flex-shrink:0}
+    .chat-textarea{flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:.88rem;font-family:inherit;padding:9px 12px;resize:none;outline:none;max-height:120px;min-height:38px;line-height:1.5;transition:border-color .2s}
+    .chat-textarea:focus{border-color:var(--blue)}
+    .chat-textarea::placeholder{color:var(--text-dimmer)}
+    .chat-send-btn{padding:9px 18px;background:var(--blue);color:#000;border:none;border-radius:8px;font-size:.85rem;font-weight:700;cursor:pointer;transition:opacity .2s,transform .1s;white-space:nowrap;height:38px}
+    .chat-send-btn:hover{opacity:.85}
+    .chat-send-btn:active{transform:scale(.97)}
+    .chat-send-btn:disabled{opacity:.4;cursor:not-allowed}
+    .chat-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--text-dimmer)}
+    .chat-empty-icon{font-size:2.4rem}
+    .chat-empty-title{font-size:.95rem;font-weight:600;color:var(--text-dim)}
+    .chat-empty-sub{font-size:.8rem;text-align:center;line-height:1.7}
+    .chat-empty-examples{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+    .chat-example{padding:7px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:20px;font-size:.8rem;color:var(--text-dim);cursor:pointer;transition:border-color .2s,color .2s;text-align:center}
+    .chat-example:hover{border-color:var(--blue);color:var(--blue)}
+
+    /* ── Metrics left column ─────────────────────── */
+    .metrics-col{display:flex;flex-direction:column;border-right:1px solid var(--border);min-height:0;overflow-y:auto;padding:14px 12px}
+    .metrics-col::-webkit-scrollbar{width:3px}
+    .mc-donut-wrap{display:flex;justify-content:center;margin-bottom:6px}
+    .donut-legend{display:flex;flex-direction:column;gap:3px;margin-bottom:10px}
+    .dl-item{display:flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:.65rem}
+    .dl-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+    .dl-name{color:var(--text-dim);flex:1}
+    .dl-val{color:var(--text-dimmer)}
+    .mc-divider{height:1px;background:var(--border);margin:8px 0}
+    .mc-stats{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px}
+    .mc-stat{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:6px;text-align:center}
+    .mc-sval{display:block;font-family:var(--font-mono);font-size:.9rem;font-weight:800;color:var(--cyan);text-shadow:0 0 8px rgba(82,200,200,.4)}
+    .mc-slbl{display:block;font-size:.56rem;color:var(--text-dimmer);letter-spacing:.08em;text-transform:uppercase;margin-top:2px}
+    .mc-section-hdr{font-size:.62rem;font-weight:700;letter-spacing:.1em;color:var(--text-dimmer);text-transform:uppercase;margin-bottom:5px}
+    .tool-row{display:flex;align-items:center;gap:5px;margin-bottom:3px}
+    .tool-tag{font-family:var(--font-mono);font-size:.63rem;font-weight:700;width:42px;flex-shrink:0}
+    .tool-track{flex:1;height:4px;background:var(--bg3);border-radius:2px;overflow:hidden}
+    .tool-fill{height:100%;border-radius:2px;transition:width .6s ease}
+    .tool-ct{font-family:var(--font-mono);font-size:.62rem;color:var(--text-dimmer);min-width:34px;text-align:right}
+    /* ── Agent cards ──────────────────────────────── */
+    .agents-col{display:flex;flex-direction:column;min-height:0;overflow:hidden;padding:14px;gap:12px}
+    .agents-col::-webkit-scrollbar{width:4px}
+    .agents-col::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+    .agent-grid-label{font-size:.62rem;font-weight:700;letter-spacing:.12em;color:var(--text-dimmer);flex-shrink:0;margin-bottom:-4px}
+    .agent-main-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(172px,1fr));gap:11px;align-content:start;flex-shrink:0}
+    .agent-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:13px 14px 12px;min-height:74px;position:relative;overflow:hidden;transition:border-color .5s,box-shadow .5s}
+    .agent-card::before{content:'';position:absolute;inset:0;opacity:0;background:radial-gradient(ellipse at top left,var(--ac,#888)14,transparent 65%);transition:opacity .5s;pointer-events:none;border-radius:10px}
+    .agent-card.active{border-color:var(--ac,var(--green));box-shadow:0 0 14px var(--ac,var(--green))30}
+    .agent-card.active::before{opacity:1}
+    .agent-card.recent{border-color:color-mix(in srgb,var(--ac,var(--green)) 35%,transparent)}
+    .ac-bar{position:absolute;top:0;left:0;right:0;height:2px;background:var(--ac,var(--green));opacity:0;transition:opacity .4s}
+    .agent-card.active .ac-bar{opacity:1;animation:bar-p 1.6s ease-in-out infinite}
+    @keyframes bar-p{0%,100%{opacity:.5}50%{opacity:1}}
+    .ac-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px}
+    .ac-dept{font-family:var(--font-mono);font-size:.6rem;font-weight:700;opacity:.6}
+    .ac-dot{width:7px;height:7px;border-radius:50%;background:var(--border);transition:background .4s,box-shadow .4s;flex-shrink:0}
+    .agent-card.active .ac-dot{background:var(--green);box-shadow:0 0 7px var(--green);animation:lp 1.2s ease-in-out infinite}
+    .agent-card.recent .ac-dot{background:#2e5a2e}
+    .ac-name{font-size:.82rem;font-weight:700;color:var(--text);line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:5px}
+    .ac-op{display:flex;align-items:baseline;gap:5px;min-height:18px}
+    .ac-tool{font-family:var(--font-mono);font-size:.64rem;font-weight:700;flex-shrink:0}
+    .ac-file{font-family:var(--font-mono);font-size:.68rem;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .ac-meta{display:flex;justify-content:space-between;margin-top:3px}
+    .ac-count{font-family:var(--font-mono);font-size:.61rem;color:var(--text-dimmer)}
+    .ac-age{font-family:var(--font-mono);font-size:.61rem;color:var(--text-dimmer)}
+    .ac-idle{font-size:.64rem;color:var(--text-dimmer);letter-spacing:.07em;min-height:18px}
+    /* ── Event strip (bottom) ─────────────────────── */
+    .event-strip{flex:1;min-height:0;border:1px solid var(--border);border-radius:10px;background:var(--bg2);display:flex;flex-direction:column;overflow:hidden}
+    .es-hdr{display:flex;align-items:center;justify-content:space-between;padding:3px 12px;border-bottom:1px solid var(--border);flex-shrink:0}
+    .es-hdr span{font-size:.66rem;font-weight:600;letter-spacing:.07em;color:var(--text-dimmer);text-transform:uppercase;display:flex;align-items:center}
+    .es-list{overflow-y:auto;flex:1}
+    .es-list::-webkit-scrollbar{width:2px}
+    .es-row{display:grid;grid-template-columns:22px auto 1fr auto;gap:5px;padding:2px 12px;font-family:var(--font-mono);font-size:.67rem;align-items:center;border-bottom:1px solid #161616}
+    .es-row:hover{background:#151515}
+    .es-rel{color:var(--text-dimmer);font-size:.62rem;text-align:right}
+    .es-badge{padding:0 4px;border-radius:2px;font-size:.6rem;font-weight:700;white-space:nowrap;line-height:1.5}
+    .es-desc{color:var(--text-dim);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+    .es-tok{color:var(--cyan);text-align:right;white-space:nowrap;font-size:.64rem}
+    /* ── Session sidebar ─────────────────────────── */
+    .sess-sidebar{display:flex;flex-direction:column;border-right:1px solid var(--border);min-height:0;overflow:hidden}
+    .sess-sidebar-hdr{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;font-size:.7rem;font-weight:600;letter-spacing:.07em;color:var(--text-dimmer);text-transform:uppercase;border-bottom:1px solid var(--border);flex-shrink:0}
+    .sess-new-btn{padding:3px 9px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--text-dim);font-size:.69rem;cursor:pointer;transition:color .2s,border-color .2s}
+    .sess-new-btn:hover{color:var(--green);border-color:var(--green)}
+    .sess-search-row{padding:7px 9px;border-bottom:1px solid var(--border);flex-shrink:0}
+    .sess-search-inp{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:.76rem;padding:5px 8px;outline:none;font-family:inherit}
+    .sess-search-inp::placeholder{color:var(--text-dimmer)}
+    .sess-list{flex:1;overflow-y:auto}
+    .sess-list::-webkit-scrollbar{width:3px}
+    .sess-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+    .sess-card{padding:9px 12px;border-bottom:1px solid #1a1a1a;cursor:pointer;transition:background .12s}
+    .sess-card:hover{background:var(--bg2)}
+    .sess-card.active{background:#0d1e36;border-left:2px solid var(--blue);padding-left:10px}
+    .sess-card-proj{font-size:.63rem;color:var(--text-dimmer);font-family:var(--font-mono);margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .sess-card-time{font-size:.63rem;color:var(--text-dimmer);font-family:var(--font-mono)}
+    .sess-card-preview{font-size:.74rem;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px}
+    .sess-card-label{font-size:.78rem;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px}
+    .sess-card{position:relative}
+    .sess-card-actions{display:none;position:absolute;top:6px;right:7px;gap:3px}
+    .sess-card:hover .sess-card-actions{display:flex}
+    .sess-act-btn{width:20px;height:20px;background:var(--bg3);border:1px solid var(--border);border-radius:3px;color:var(--text-dimmer);font-size:.78rem;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;transition:color .15s,border-color .15s,background .15s;padding:0}
+    .sess-act-btn:hover{color:var(--text);border-color:var(--text-dimmer);background:var(--bg2)}
+    .sess-act-btn.del:hover{color:var(--red);border-color:var(--red);background:#1a0505}
+    .sess-rename-inp{width:100%;background:var(--bg3);border:1px solid var(--blue);border-radius:3px;color:var(--text);font-size:.77rem;padding:3px 6px;outline:none;font-family:inherit;margin-top:3px}
+    .sess-del-confirm{display:flex;align-items:center;gap:6px;padding:5px 0 2px;margin-top:4px;border-top:1px solid var(--border)}
+    .sess-del-txt{font-size:.7rem;color:var(--text-dimmer);flex:1}
+    .sess-del-yes{padding:2px 9px;background:#2a0505;border:1px solid var(--red);border-radius:3px;color:var(--red);font-size:.7rem;cursor:pointer}
+    .sess-del-no{padding:2px 9px;background:var(--bg3);border:1px solid var(--border);border-radius:3px;color:var(--text-dim);font-size:.7rem;cursor:pointer}
+
+    /* ── Conversation transcript viewer ──────────── */
+    .conv-msgs{flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:14px}
+    .conv-msgs::-webkit-scrollbar{width:4px}
+    .conv-msgs::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+    .conv-msg{display:flex;flex-direction:column;max-width:88%}
+    .conv-msg.user{align-self:flex-end;align-items:flex-end}
+    .conv-msg.assistant{align-self:flex-start;align-items:flex-start}
+    .conv-msg-role{font-size:.68rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:3px}
+    .conv-msg.user .conv-msg-role{color:var(--blue)}
+    .conv-msg.assistant .conv-msg-role{color:var(--purple)}
+    .conv-msg-bubble{padding:9px 13px;border-radius:11px;font-size:.86rem;line-height:1.65;white-space:pre-wrap;word-break:break-word}
+    .conv-msg.user .conv-msg-bubble{background:#0d1e36;border:1px solid #1a3a60;color:#c8deff;border-bottom-right-radius:3px}
+    .conv-msg.assistant .conv-msg-bubble{background:var(--bg2);border:1px solid var(--border);color:var(--text);border-bottom-left-radius:3px}
+    .conv-msg-tools{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}
+    .conv-tool-chip{padding:2px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;font-family:var(--font-mono);font-size:.68rem;color:var(--text-dim)}
+    .conv-msg-time{font-size:.63rem;color:var(--text-dimmer);font-family:var(--font-mono);margin-top:3px}
+    .conv-session-id{font-family:var(--font-mono);font-size:.66rem;color:var(--text-dimmer);margin-left:auto}
+
+    /* ── Main live-view column ───────────────────────── */
+    .main-col{display:flex;flex-direction:column;border-right:1px solid var(--border);min-height:0}
+    .live-header{display:flex;align-items:center;gap:8px;padding:7px 14px;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--bg2);font-family:var(--font-mono);font-size:.72rem}
+    .live-badge{font-weight:700;letter-spacing:.08em;color:var(--text-dimmer);flex-shrink:0}
+    .live-badge.active{color:var(--green);animation:lp 2s ease-in-out infinite}
+    @keyframes lp{0%,100%{opacity:1}50%{opacity:.35}}
+    .live-session-lbl{flex:1;color:var(--text-dimmer);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .live-hist-btn{padding:2px 9px;background:none;border:1px solid var(--border);border-radius:4px;color:var(--text-dim);font-size:.69rem;cursor:pointer;font-family:inherit;transition:color .2s,border-color .2s;flex-shrink:0}
+    .live-hist-btn:hover{color:var(--blue);border-color:var(--blue)}
+    .live-empty{flex:1;display:flex;align-items:center;justify-content:center;color:var(--text-dimmer);font-size:.8rem;text-align:center;padding:20px}
+    /* ── Agent status grid ───────────────────────────── */
+    .agent-grid-sec{flex-shrink:0;border-top:1px solid var(--border);max-height:188px;display:flex;flex-direction:column}
+    .agent-grid-hdr{padding:5px 14px;font-size:.67rem;font-weight:600;letter-spacing:.07em;color:var(--text-dimmer);text-transform:uppercase;border-bottom:1px solid var(--border);flex-shrink:0}
+    .agent-grid{display:flex;flex-wrap:wrap;gap:5px;padding:9px 14px;overflow-y:auto;flex:1}
+    .agent-grid::-webkit-scrollbar{height:3px}
+    .agent-chip{display:flex;align-items:center;gap:4px;padding:3px 9px;background:var(--bg2);border:1px solid var(--border);border-radius:14px;font-size:.71rem;color:var(--text-dim);transition:border-color .4s,color .4s;white-space:nowrap;cursor:default}
+    .agent-chip.active{border-color:var(--green);color:var(--green)}
+    .agent-chip.recent{border-color:#1e3a1e;color:#4a8a4a}
+    .agent-dot{width:5px;height:5px;border-radius:50%;background:var(--border);flex-shrink:0;transition:background .4s}
+    .agent-chip.active .agent-dot{background:var(--green);animation:lp 1.4s ease-in-out infinite}
+    .agent-chip.recent .agent-dot{background:#2e5a2e}
+    /* ── Metrics panel ───────────────────────────────── */
+    .metrics-panel{flex-shrink:0;border-bottom:1px solid var(--border);padding:10px 14px}
+    .mp-header{font-size:.64rem;font-weight:700;letter-spacing:.12em;color:var(--text-dimmer);text-transform:uppercase;margin-bottom:8px}
+    .mp-nums{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:10px}
+    .mp-num-box{display:flex;flex-direction:column;align-items:center;padding:5px 4px;background:var(--bg2);border:1px solid var(--border);border-radius:5px}
+    .mp-num{font-family:var(--font-mono);font-size:.95rem;font-weight:800;color:var(--cyan);text-shadow:0 0 10px rgba(82,200,200,.5);line-height:1.2}
+    .mp-lbl{font-size:.54rem;color:var(--text-dimmer);letter-spacing:.09em;text-transform:uppercase;margin-top:2px}
+    .mp-sec{font-size:.62rem;font-weight:700;letter-spacing:.1em;color:var(--text-dimmer);text-transform:uppercase;margin:8px 0 5px}
+    .tool-row{display:flex;align-items:center;gap:5px;margin-bottom:3px}
+    .tool-tag{font-family:var(--font-mono);font-size:.63rem;font-weight:700;width:44px;flex-shrink:0}
+    .tool-track{flex:1;height:4px;background:var(--bg3);border-radius:2px;overflow:hidden}
+    .tool-fill{height:100%;border-radius:2px;transition:width .6s ease}
+    .tool-ct{font-family:var(--font-mono);font-size:.63rem;color:var(--text-dimmer);min-width:36px;text-align:right}
+    .rf-wrap{margin-top:8px;display:flex;flex-wrap:wrap;gap:4px}
+    .rf-sec{font-size:.62rem;font-weight:700;letter-spacing:.1em;color:var(--text-dimmer);text-transform:uppercase;margin-bottom:4px}
+    .rf-chip{padding:2px 7px;border-radius:10px;border:1px solid var(--border);font-family:var(--font-mono);font-size:.63rem;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px}
+
+    /* event feed */
+    .feed-col{display:flex;flex-direction:column;min-height:0}
+    .feed-col-header{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;font-size:.72rem;font-weight:600;letter-spacing:.07em;color:var(--text-dimmer);text-transform:uppercase;border-bottom:1px solid var(--border);flex-shrink:0}
+    .feed-clear-btn{background:none;border:none;color:var(--text-dimmer);font-size:.7rem;cursor:pointer;padding:2px 6px;border-radius:3px;transition:color .2s}
+    .feed-clear-btn:hover{color:var(--red)}
+    .event-list{flex:1;overflow-y:auto}
+    .event-list::-webkit-scrollbar{width:3px}
+    .event-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+    .feed-dot{display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--text-dimmer);margin-right:6px;vertical-align:middle;transition:background .3s}
+    .feed-dot.active{background:var(--red);box-shadow:0 0 5px var(--red);animation:lp 1s ease-in-out infinite}
+    .event-row{display:grid;grid-template-columns:26px auto 1fr auto;align-items:center;gap:5px;padding:4px 12px;border-bottom:1px solid #1a1a1a;font-family:var(--font-mono);font-size:.71rem}
+    .event-row:hover{background:#161616}
+    .ev-rel{color:var(--text-dimmer);font-size:.62rem;text-align:right;white-space:nowrap}
+    .ev-badge{padding:1px 5px;border-radius:3px;font-size:.61rem;font-weight:700;white-space:nowrap;line-height:1.4}
+    .ev-desc{color:var(--text-dim);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+    .ev-tok{color:var(--cyan);text-align:right;white-space:nowrap;font-size:.66rem}
+    .sessions-compact{border-top:1px solid var(--border);max-height:160px;overflow-y:auto;flex-shrink:0}
+    .sess-row{display:flex;align-items:center;gap:8px;padding:5px 12px;border-bottom:1px solid #1c1c1c;font-family:var(--font-mono);font-size:.7rem}
+    .sess-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+    .sess-name{color:var(--text-dim);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+    /* ── GRAPH ────────────────────────────────────── */
+    #panel-graph { overflow:hidden; position:relative; }
+    .graph-toolbar {
+      display:flex; align-items:center; gap:12px;
+      padding:10px 20px; border-bottom:1px solid var(--border);
+      background:var(--bg2); flex-shrink:0; font-size:.78rem;
+    }
+    .graph-status { color:var(--text-dimmer); font-family:var(--font-mono); font-size:.72rem; flex:1; }
+    .graph-btn {
+      padding:5px 12px; background:var(--bg3); border:1px solid var(--border);
+      border-radius:5px; color:var(--text-dim); font-size:.75rem; cursor:pointer;
+      transition:color .2s,border-color .2s;
+    }
+    .graph-btn:hover { color:var(--blue); border-color:var(--blue); }
+    .graph-scroll {
+      flex:1; overflow:auto; padding:24px;
+      display:flex; justify-content:center;
+    }
+    .graph-scroll::-webkit-scrollbar { width:5px; height:5px; }
+    .graph-scroll::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+
+    /* update flash overlay */
+    .graph-update-overlay {
+      position:absolute; inset:0;
+      background:rgba(15,15,15,.7);
+      display:flex; align-items:center; justify-content:center;
+      font-size:.9rem; color:var(--blue);
+      pointer-events:none; opacity:0;
+      transition:opacity .3s;
+      z-index:10;
+    }
+    .graph-update-overlay.visible { opacity:1; }
+
+    /* ── CAPABILITIES ─────────────────────────────── */
+    #panel-capabilities{overflow-y:auto;padding:24px}
+    #panel-capabilities::-webkit-scrollbar{width:5px}
+    #panel-capabilities::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+    .cap-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+    .cap-card{background:var(--bg2);border:1px solid var(--border);border-left:3px solid var(--text-dimmer);border-radius:8px;padding:14px}
+    .cap-header{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+    .cap-id{font-family:var(--font-mono);font-size:.66rem;background:var(--bg3);color:var(--text-dimmer);padding:2px 6px;border-radius:20px}
+    .cap-name{font-size:.88rem;font-weight:700;color:#fff;margin-bottom:6px}
+    .cap-role{font-size:.76rem;color:var(--text-dim);margin-bottom:10px;line-height:1.5}
+    .cap-sources{display:flex;flex-direction:column;gap:4px}
+    .cap-source{display:grid;grid-template-columns:auto 1fr;gap:5px;align-items:baseline;font-family:var(--font-mono);font-size:.7rem}
+    .cap-perm{padding:1px 4px;border-radius:3px;font-size:.63rem;font-weight:700;white-space:nowrap}
+    .perm-rw{background:#1a2a1a;color:var(--green)} .perm-r{background:#1a1a2a;color:var(--blue)}
+    .perm-web{background:#2a1a2a;color:var(--purple)} .perm-w{background:#2a2a10;color:var(--yellow)}
+    .cap-path{color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+    /* ── RESULTS ──────────────────────────────────── */
+    #panel-results{overflow-y:auto;padding:24px}
+    #panel-results::-webkit-scrollbar{width:5px}
+    #panel-results::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+    .results-list{display:flex;flex-direction:column;gap:8px;max-width:760px}
+    .result-card{display:flex;align-items:center;gap:12px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:12px 16px;transition:border-color .2s}
+    .result-card:hover{border-color:var(--text-dim)}
+    .result-icon{font-size:1.1rem;width:28px;text-align:center;flex-shrink:0}
+    .result-info{flex:1;min-width:0}
+    .result-name{font-weight:600;color:var(--text);margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .result-meta{font-family:var(--font-mono);font-size:.7rem;color:var(--text-dimmer)}
+    .result-open{padding:5px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:5px;color:var(--text-dim);font-size:.78rem;cursor:pointer;text-decoration:none;white-space:nowrap;transition:color .2s,border-color .2s}
+    .result-open:hover{color:var(--blue);border-color:var(--blue)}
+
+    .empty-state{text-align:center;padding:50px 20px;color:var(--text-dimmer);font-size:.88rem}
+    .empty-state .icon{font-size:1.8rem;margin-bottom:10px}
+
+    /* ── CLAUDE.md EDITOR MODAL ─────────────────────── */
+    .editor-overlay {
+      position:fixed; inset:0; z-index:200;
+      background:rgba(0,0,0,.72); backdrop-filter:blur(4px);
+      display:flex; align-items:center; justify-content:center;
+      opacity:0; pointer-events:none; transition:opacity .2s;
+    }
+    .editor-overlay.visible { opacity:1; pointer-events:auto; }
+    .editor-modal {
+      background:#141414; border:1px solid #333; border-radius:12px;
+      width:min(880px, 92vw); height:min(680px, 88vh);
+      display:flex; flex-direction:column; overflow:hidden;
+      box-shadow:0 24px 70px rgba(0,0,0,.75);
+    }
+    .editor-header {
+      display:flex; align-items:flex-start; justify-content:space-between;
+      padding:16px 20px; border-bottom:1px solid #252525; flex-shrink:0;
+    }
+    .editor-title { font-size:.95rem; font-weight:700; color:#fff; }
+    .editor-path  { font-size:.7rem; color:var(--text-dimmer); font-family:var(--font-mono); margin-top:4px; }
+    .editor-close {
+      width:28px; height:28px; background:none; border:none; border-radius:50%;
+      color:var(--text-dim); font-size:1.3rem; line-height:1; cursor:pointer;
+      display:flex; align-items:center; justify-content:center;
+      transition:background .2s, color .2s; flex-shrink:0;
+    }
+    .editor-close:hover { background:#2a2a2a; color:var(--red); }
+    .editor-textarea {
+      flex:1; background:#0d0d0d; border:none; outline:none;
+      color:#ddd; font-family:'SF Mono','Menlo','Consolas',monospace;
+      font-size:.82rem; line-height:1.75; padding:20px 22px;
+      resize:none; overflow-y:auto; tab-size:2;
+    }
+    .editor-textarea::-webkit-scrollbar { width:5px; }
+    .editor-textarea::-webkit-scrollbar-thumb { background:#2a2a2a; border-radius:3px; }
+    .editor-footer {
+      display:flex; align-items:center; gap:12px;
+      padding:11px 20px; border-top:1px solid #252525;
+      flex-shrink:0; background:#141414;
+    }
+    .editor-status { font-size:.75rem; font-family:var(--font-mono); color:var(--text-dimmer); flex:1; }
+    .editor-hint   { font-size:.7rem; color:var(--text-dimmer); white-space:nowrap; }
+    .editor-save {
+      padding:7px 22px; background:var(--blue); color:#000;
+      border:none; border-radius:6px; font-size:.84rem; font-weight:700;
+      cursor:pointer; transition:opacity .15s; white-space:nowrap;
+    }
+    .editor-save:hover   { opacity:.85; }
+    .editor-save:disabled{ opacity:.4; cursor:not-allowed; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Agent Hub Dashboard</h1>
+  <div class="live-dot" id="liveDot"></div>
+  <span class="live-label" id="liveLabel">接続中…</span>
+  <span style="flex:1"></span>
+  <div id="sysStats" style="display:flex; gap:16px; margin-right:20px; font-size:0.72rem; color:var(--text-dim); align-items:center; font-family:var(--font-mono);"></div>
+  <span style="font-size:.72rem;color:var(--text-dimmer);font-family:var(--font-mono)" id="clock"></span>
+</header>
+
+<nav class="tabs">
+  <button class="tab-btn active"  onclick="switchTab('monitor')">Monitor</button>
+  <button class="tab-btn" onclick="switchTab('graph')">Graph</button>
+  <button class="tab-btn" onclick="switchTab('capabilities')">Capabilities</button>
+  <button class="tab-btn" onclick="switchTab('results')">Results</button>
+</nav>
+
+<!-- ═══ MONITOR ════════════════════════════════════════════════════ -->
+<div class="panel" id="panel-monitor">
+  <div class="monitor-stat-bar">
+    <div class="stat-item"><span class="stat-label">推定トークン</span><span class="stat-value" id="statTok">—</span></div>
+    <div class="stat-item"><span class="stat-label">稼働中</span><span class="stat-value" id="statSess">—</span></div>
+    <div class="stat-item"><span class="stat-label">イベント</span><span class="stat-value" id="statEv">—</span></div>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:.7rem;color:var(--text-dimmer)">
+      <span class="feed-dot" id="feedDot"></span><span id="feedStatus">接続中…</span>
+    </div>
+  </div>
+
+  <div class="monitor-body">
+    <!-- ── Left: Donut + metrics ── -->
+    <div class="metrics-col">
+      <div class="mc-donut-wrap">
+        <svg id="donutSvg" width="140" height="140" viewBox="0 0 140 140">
+          <circle cx="70" cy="70" r="52" fill="none" stroke="#191919" stroke-width="12"/>
+          <text x="70" y="75" text-anchor="middle" fill="#444" font-size="13" font-family="SF Mono,Menlo,monospace">—</text>
+        </svg>
+      </div>
+      <div class="donut-legend" id="donutLegend"></div>
+      <div class="mc-divider"></div>
+      <div class="mc-stats">
+        <div class="mc-stat"><span class="mc-sval" id="metSpeed">—</span><span class="mc-slbl">tok/min</span></div>
+        <div class="mc-stat"><span class="mc-sval" id="metCost">—</span><span class="mc-slbl">推定コスト</span></div>
+      </div>
+      <div class="mc-divider"></div>
+      <div class="mc-section-hdr">Tool Breakdown</div>
+      <div id="toolBreakdown"><div style="font-size:.7rem;color:var(--text-dimmer)">データなし</div></div>
+    </div>
+
+    <!-- ── Right: Agent cards + Live feed ── -->
+    <div class="agents-col">
+      <div class="agent-grid-label">AGENTS</div>
+      <div class="agent-main-grid" id="agentGrid">
+        <div style="padding:20px;color:var(--text-dimmer);font-size:.8rem">読み込み中…</div>
+      </div>
+      <!-- Live Events がカード下の空き領域をすべて埋める -->
+      <div class="event-strip" id="liveFeed">
+        <div class="es-hdr">
+          <span><span class="feed-dot" id="feedDot2"></span>Live Events</span>
+          <button class="feed-clear-btn" onclick="clearEvents()">消去</button>
+        </div>
+        <div class="es-list" id="eventList">
+          <div style="padding:5px 14px;color:var(--text-dimmer);font-size:.7rem">エージェントを起動すると表示されます</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ GRAPH ══════════════════════════════════════════════════════ -->
+<div class="panel" id="panel-graph">
+  <div class="graph-toolbar">
+    <span class="graph-status" id="graphStatus">読み込み中…</span>
+    <button class="graph-btn" onclick="loadGraph()">↺ 再描画</button>
+  </div>
+  <div class="graph-scroll" id="graphScroll">
+    <div id="graphSvgWrap"></div>
+  </div>
+  <div class="graph-update-overlay" id="graphOverlay">🔄 設定ファイルが変更されました — 再描画中…</div>
+</div>
+
+<!-- ═══ CAPABILITIES ═══════════════════════════════════════════════ -->
+<div class="panel" id="panel-capabilities">
+  <div class="cap-grid" id="capGrid">
+    <div class="empty-state"><div class="icon">⏳</div>読み込み中…</div>
+  </div>
+</div>
+
+<!-- ═══ RESULTS ════════════════════════════════════════════════════ -->
+<div class="panel" id="panel-results">
+  <div class="results-list" id="resultsList">
+    <div class="empty-state"><div class="icon">⏳</div>読み込み中…</div>
+  </div>
+</div>
+
+<!-- ═══ CLAUDE.md EDITOR MODAL ══════════════════════════════════ -->
+<div class="editor-overlay" id="editorOverlay" onclick="closeEditor()">
+  <div class="editor-modal" onclick="event.stopPropagation()">
+    <div class="editor-header">
+      <div>
+        <div class="editor-title" id="editorTitle">CLAUDE.md</div>
+        <div class="editor-path"  id="editorPath">読み込み中…</div>
+      </div>
+      <button class="editor-close" onclick="closeEditor()">×</button>
+    </div>
+    <textarea class="editor-textarea" id="editorTextarea"
+      spellcheck="false" placeholder="読み込み中…"></textarea>
+    <div class="editor-footer">
+      <div class="editor-status" id="editorStatus"></div>
+      <span class="editor-hint">Cmd/Ctrl + S で保存</span>
+      <button class="editor-save" id="editorSaveBtn" onclick="saveEditor()">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════
+//  Helpers
+// ══════════════════════════════════════════════════════════════════
+function esc(s){ return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function fmtTime(iso){ return new Date(iso).toTimeString().slice(0,8); }
+function fmtDate(iso){ const d=new Date(iso); return `${d.getMonth()+1}/${d.getDate()} ${d.toTimeString().slice(0,5)}`; }
+function fmtSize(b){ return b<1024?b+' B':b<1048576?(b/1024).toFixed(1)+' KB':(b/1048576).toFixed(1)+' MB'; }
+function fmtTok(n){ return n?'~'+n.toLocaleString():''; }
+function basename(p){ return (p||'').split('/').pop()||p||''; }
+function renderMd(text){
+  return esc(text)
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g,'<em>$1</em>')
+    .replace(/`([^`]+)`/g,'<code>$1</code>')
+    .replace(/^(#{1,3})\s+(.+)$/gm,(_,h,t)=>`<strong style="display:block;margin-top:6px">${t}</strong>`)
+    .replace(/^[-•]\s+(.+)$/gm,'• $1')
+    .replace(/\n/g,'<br>');
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  Tool metadata
+// ══════════════════════════════════════════════════════════════════
+const TOOL_META={
+  Read:            {c:'var(--blue)',   s:'READ',  lbl:'Read'},
+  Write:           {c:'var(--yellow)', s:'WRITE', lbl:'Write'},
+  Edit:            {c:'var(--yellow)', s:'EDIT',  lbl:'Edit'},
+  Bash:            {c:'var(--red)',    s:'BASH',  lbl:'Bash'},
+  WebSearch:       {c:'var(--green)',  s:'SRCH',  lbl:'Web'},
+  WebFetch:        {c:'var(--green)',  s:'FETCH', lbl:'Fetch'},
+  Agent:           {c:'var(--purple)', s:'AGENT', lbl:'Agent'},
+  AskUserQuestion: {c:'var(--cyan)',   s:'ASK',   lbl:'Ask'},
+  Task:            {c:'var(--purple)', s:'TASK',  lbl:'Task'},
+};
+
+function relTime(iso){
+  const s=Math.floor((Date.now()-new Date(iso).getTime())/1000);
+  if(s<5)return'now';if(s<60)return s+'s';
+  if(s<3600)return Math.floor(s/60)+'m';return Math.floor(s/3600)+'h';
+}
+
+function flashFeedDot(){
+  const d=document.getElementById('feedDot');if(!d)return;
+  d.classList.add('active');setTimeout(()=>d.classList.remove('active'),2000);
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  Monitor: Event feed
+// ══════════════════════════════════════════════════════════════════
+let allEvents=[],sessions={};
+
+// ── 部門メタ（server の DEPT_LABELS/COLORS に対応） ──
+const DEPTS={
+  '01':{label:'タスク管理',color:'#7aadff'},'02':{label:'お金管理',color:'#4caf6e'},
+  '03':{label:'ギター',color:'#c87fff'},  '04':{label:'仕事探し',color:'#d4a437'},
+  '05':{label:'仕事実行',color:'#e0a020'},'06':{label:'進路',color:'#52c8c8'},
+  '07':{label:'AI・IT情報',color:'#52c8ff'},'08':{label:'体調',color:'#e05252'},
+  '09':{label:'大学',color:'#ffb347'},    '10':{label:'資産分析',color:'#ffd700'},
+  '11':{label:'一人暮らし',color:'#ff69b4'},  '12':{label:'機材資産',color:'#c89000'},
+};
+const COMMANDER={label:'司令塔',color:'#f5c842'};
+function deptMeta(num){ return DEPTS[num]||{label:'部門'+num,color:'#888'}; }
+
+// agent_id → 部門番号 を「実データ」から確定する（キーワード推測はしない）:
+//  (a) サブエージェントが最初に読む自分の CLAUDE.md パス "agents/NN_..."
+//  (b) Agent 発令: 結果の child_agent_id ⟷ 発令 prompt から読んだ部門番号
+const agentDept={};    // agent_id → 'NN'（部門番号・ロールアップ用）
+const agentFolder={};  // agent_id → 'nn[x]_slug'（正確なエージェント識別）
+
+// /api/graph（正データ）から構築する識別レジストリ: folder → {short,dept,lead}
+const AGENT_REG={};
+const LEAD_DEPTS=new Set();   // 部門長が居る部門番号 → 配下/統括の区別に使う
+function shortName(n){ return String(n||'').replace(/エージェント$/,'').replace(/部門長$/,'').replace(/（.*?）/g,'').trim(); }
+function buildAgentReg(g){
+  if(!g||!g.departments)return;
+  g.departments.forEach(d=>{
+    const put=(a,lead)=>{ AGENT_REG[String(a.id).toLowerCase()]={short:shortName(a.name),dept:d.number,lead:!!lead}; if(lead)LEAD_DEPTS.add(d.number); };
+    if(d.lead)put(d.lead,true);
+    (d.agents||[]).forEach(a=>put(a,false));
+  });
+}
+
+// 自分の agents/フォルダ を読んだ痕跡から「正確なフォルダ名」を取る（10_asset-lead と 10b_… を区別）
+function folderFromText(s){
+  const m=String(s||'').match(/agents\/(\d{1,2}[a-z]?_[a-z0-9\-]+)/i);
+  return m?m[1].toLowerCase():null;
+}
+// 部門番号だけ取る（（01）（09b）表記・フォルダパスから）
+function deptFromText(s){
+  s=String(s||'');
+  let m=s.match(/agents\/(\d{1,2})[0-9a-z]*_/i);
+  if(m) return m[1].padStart(2,'0');
+  m=s.match(/[（(]\s*(\d{1,2})[0-9a-z]*\s*[）)]/);
+  if(m) return m[1].padStart(2,'0');
+  return null;
+}
+// 共有データファイル名 → 部門（CLAUDE.md未読でも最低限の部門を当てる保険）
+const FILE_DEPT=[
+  [/todo|中期目標|長期目標|中長期目標/,'01'],[/家計簿|固定資産台帳/,'02'],
+  [/練習記録/,'03'],[/メールの例/,'05'],[/ai-news|it-news/,'07'],
+  [/睡眠時間|体調|習慣/,'08'],[/文章例|取り組む課題|成績記録|学生便覧/,'09'],
+  [/保有商品リスト|理想の資産/,'10'],[/living|一人暮らし|部屋作り|暮らしメモ|生活コスト|引越しアーカイブ|物件|ライフライン|賃貸|moving/,'11'],
+  [/機材リスト|価格履歴|gear/,'12'],
+];
+function fileDept(s){ s=String(s||''); for(const [re,d] of FILE_DEPT) if(re.test(s)) return d; return null; }
+
+// イベントの実行主体を返す: 'NN'（部門）/ '_cmd'（司令塔）/ '?xxxxxx'（未識別の子）
+function actorOf(ev){
+  const aid=ev.agent_id||'';
+  if(!aid) return '_cmd';
+  return agentDept[aid] || ('?'+aid.slice(0,6));
+}
+
+// 稼働状況の集計: actor別ロールアップ と 稼働中サブエージェント（agent_id単位）
+const activity={};     // 'NN' | '_cmd' → {lastSeen,lastTool,lastFile,count,tokens}
+const liveAgents={};   // agent_id → {dept,folder,start,lastSeen,lastTool,lastFile,count,tokens}
+
+function learnDept(ev){
+  // (b) Agent 発令: prompt から子のフォルダ/部門を学習
+  if(ev.tool_name==='Agent'){
+    const txt=(ev.tool_input&&(ev.tool_input.prompt||ev.tool_input.description))||'';
+    const cid=ev.child_agent_id;
+    if(cid){
+      const f=folderFromText(txt);
+      if(f&&!agentFolder[cid]){ agentFolder[cid]=f; if(AGENT_REG[f]) agentDept[cid]=AGENT_REG[f].dept; }
+      const d=deptFromText(txt)||fileDept(txt);
+      if(d&&!agentDept[cid]) agentDept[cid]=d;
+    }
+    return;
+  }
+  // (a) 子自身のツール痕跡から学習
+  const aid=ev.agent_id||''; if(!aid) return;
+  const i=ev.tool_input||{};
+  const hay=i.file_path||i.path||i.command||i.prompt||i.query||'';
+  if(!agentFolder[aid]){ const f=folderFromText(hay); if(f){ agentFolder[aid]=f; if(AGENT_REG[f]) agentDept[aid]=AGENT_REG[f].dept; } }
+  if(!agentDept[aid]){ const d=deptFromText(hay)||fileDept(basename(hay)||hay); if(d) agentDept[aid]=d; }
+}
+
+function evFile(ev){
+  const i=ev.tool_input||{};
+  return basename(i.file_path||i.path||'')
+      || (i.command?String(i.command).replace(/\s+/g,' ').slice(0,30):'')
+      || (i.query?String(i.query).slice(0,30):'')
+      || (i.url?String(i.url).replace(/^https?:\/\//,'').slice(0,30):'')
+      || (i.description?String(i.description).slice(0,30):'');
+}
+
+function trackActivity(ev){
+  const now=Date.now();
+  const key=actorOf(ev), file=evFile(ev);
+  if(!activity[key]) activity[key]={lastSeen:0,lastTool:'',lastFile:'',count:0,tokens:0};
+  const a=activity[key]; a.lastSeen=now;
+  if(ev.event==='pre_tool'){ a.lastTool=ev.tool_name||''; a.lastFile=file; a.count++; }
+  if(ev.token_estimate) a.tokens+=ev.token_estimate;
+
+  const aid=ev.agent_id||'';
+  if(aid){
+    if(!liveAgents[aid]) liveAgents[aid]={start:now,lastSeen:0,lastTool:'',lastFile:'',count:0,tokens:0,dept:null,folder:null};
+    const L=liveAgents[aid]; L.lastSeen=now; L.dept=agentDept[aid]||L.dept; L.folder=agentFolder[aid]||L.folder;
+    if(ev.event==='pre_tool'){ L.lastTool=ev.tool_name||''; L.lastFile=file; L.count++; }
+    if(ev.token_estimate) L.tokens+=ev.token_estimate;
+  }
+}
+function toolDesc(ev){
+  const i=ev.tool_input||{};
+  switch(ev.tool_name){
+    case'Read':return basename(i.file_path||'');case'Write':return basename(i.file_path||'');
+    case'Edit':return basename(i.file_path||'');case'Bash':return(i.command||'').slice(0,55);
+    case'WebSearch':return i.query||'';case'WebFetch':return(i.url||'').replace(/^https?:\/\//,'').slice(0,45);
+    case'Agent':return(i.description||i.prompt||'').slice(0,50);
+    default:return JSON.stringify(i).slice(0,50);
+  }
+}
+function toolClass(ev){
+  if(ev.event==='stop')return'tool-stop';
+  return({'Read':'tool-Read','Write':'tool-Write','Edit':'tool-Edit','Bash':'tool-Bash',
+    'WebSearch':'tool-WebSearch','WebFetch':'tool-WebFetch','Agent':'tool-Agent'})[ev.tool_name]||'tool-default';
+}
+function ingestEvent(ev){
+  if(ev.event==='config_changed'){ onConfigChanged(ev); return; }
+  learnDept(ev);
+  if(ev.event==='pre_tool'||ev.event==='post_tool') trackActivity(ev);
+  allEvents.unshift(ev);
+  if(allEvents.length>800)allEvents.pop();
+  const sid=ev.session_id||'unknown';
+  if(!sessions[sid])sessions[sid]={tokens:0};
+  if(ev.token_estimate)sessions[sid].tokens+=ev.token_estimate;
+  flashFeedDot();updateStats();renderFeed();renderAgentGrid();renderMetrics();
+}
+function updateStats(){
+  const t=Object.values(sessions).reduce((a,s)=>a+s.tokens,0);
+  const now=Date.now();
+  const liveCount=Object.values(liveAgents).filter(L=>now-L.lastSeen<30000).length;
+  document.getElementById('statTok').textContent=t>0?'~'+t.toLocaleString():'—';
+  document.getElementById('statSess').textContent=liveCount||'0';
+  document.getElementById('statEv').textContent=allEvents.length||'—';
+}
+function renderFeed(){
+  const list=document.getElementById('eventList');
+  if(!list)return;
+  if(!allEvents.length){
+    list.innerHTML='<div style="padding:5px 14px;color:var(--text-dimmer);font-size:.7rem">イベントなし</div>';
+    return;
+  }
+  list.innerHTML=allEvents.slice(0,60).map(ev=>{
+    const rel=relTime(ev.ts);
+    const isPre=ev.event==='pre_tool';
+    const isStop=ev.event==='stop';
+    const meta=TOOL_META[ev.tool_name]||{c:'var(--text-dim)',s:(ev.tool_name||ev.event||'?').slice(0,5)};
+    let badge,bStyle,desc;
+    if(isStop){
+      badge='END';bStyle='color:#555;background:#1a1a1a';desc='セッション完了';
+    }else if(isPre){
+      badge=meta.s;
+      bStyle=`background:${meta.c}20;color:${meta.c};border:1px solid ${meta.c}50`;
+      desc=toolDesc(ev);
+    }else{
+      badge='↩';bStyle=`color:${meta.c}80;background:transparent`;desc=toolDesc(ev);
+    }
+    const tok=ev.token_estimate?fmtTok(ev.token_estimate):'';
+    return`<div class="es-row"><span class="ev-rel">${rel}</span>${actorTag(ev)}<span class="es-badge" style="${bStyle}">${esc(badge)}</span><span class="ev-desc">${esc(desc)}</span><span class="ev-tok">${tok}</span></div>`;
+  }).join('');
+}
+function actorTag(ev){
+  const key=actorOf(ev);
+  let label,color;
+  if(key==='_cmd'){ label=COMMANDER.label; color=COMMANDER.color; }
+  else if(key[0]==='?'){ label='子'; color='#888'; }
+  else { const m=deptMeta(key); label=m.label; color=m.color; }
+  return`<span style="font-size:.56rem;padding:1px 5px;border:1px solid ${color}55;border-radius:8px;color:${color};white-space:nowrap;flex-shrink:0;max-width:80px;overflow:hidden;text-overflow:ellipsis">${esc(label)}</span>`;
+}
+function clearEvents(){
+  allEvents=[];sessions={};
+  for(const k in activity)delete activity[k];
+  for(const k in liveAgents)delete liveAgents[k];
+  updateStats();renderFeed();renderAgentGrid();renderMetrics();
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  Agent status grid（agent_id 実データ駆動 — 推測なし）
+// ══════════════════════════════════════════════════════════════════
+async function loadAgentGrid(){ renderAgentGrid(); }
+
+function statusLineFor(act, now){
+  if(!act) return '待機中';
+  const active=now-act.lastSeen<30000;
+  if(active && act.lastTool) return act.lastTool+(act.lastFile?' · '+act.lastFile:'');
+  if(act.count) return `${act.count} ops`;
+  return '待機中';
+}
+
+function renderAgentGrid(){
+  const grid=document.getElementById('agentGrid');
+  if(!grid) return;
+  const now=Date.now();
+
+  // 稼働中サブエージェント（agent_id単位・直近30s）— 「今まさに動いている子」を上段に
+  const running=Object.entries(liveAgents)
+    .filter(([,L])=>now-L.lastSeen<30000)
+    .sort((a,b)=>b[1].lastSeen-a[1].lastSeen);
+  let runHtml='';
+  if(running.length){
+    runHtml=`<div style="grid-column:1/-1;font-size:.62rem;color:var(--text-dimmer);letter-spacing:.06em;margin:2px 0 -2px">▶ 稼働中サブエージェント（${running.length}）</div>`
+      + running.map(([aid,L])=>{
+        // 正確な識別: フォルダ→AGENT_REG（個別名＋統括/配下）→ 部門ラベル → 識別中
+        const reg=L.folder?AGENT_REG[L.folder]:null;
+        let label,color,role='';
+        if(reg){ label=reg.short; color=deptMeta(reg.dept).color; role=reg.lead?'統括':(LEAD_DEPTS.has(reg.dept)?'配下':''); }
+        else if(L.dept){ label=deptMeta(L.dept).label; color=deptMeta(L.dept).color; }
+        else { label='識別中…'; color='#888'; }
+        const roleChip=role?`<span style="font-size:.5rem;font-weight:700;padding:1px 5px;border-radius:8px;background:${color}22;color:${color};margin-left:5px;flex-shrink:0">${role}</span>`:'';
+        const sec=Math.max(0,Math.round((now-L.start)/1000));
+        const line=(L.lastTool?L.lastTool+(L.lastFile?' · '+L.lastFile:''):'…');
+        return`<div class="agent-card active" style="--ac:${color}">
+          <div class="ac-bar"></div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+            <span style="display:flex;align-items:center;min-width:0"><span style="font-size:.66rem;font-weight:700;color:${color};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(label)}</span>${roleChip}</span>
+            <span class="ac-dot" style="flex-shrink:0"></span>
+          </div>
+          <div style="font-size:.6rem;color:var(--text-dim);font-family:var(--font-mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(line)}">${esc(line)}</div>
+          <div style="font-size:.56rem;color:var(--text-dimmer);margin-top:4px;font-family:var(--font-mono)">${L.count} ops · ${sec}s · ${fmtTok(L.tokens)||'~0'}</div>
+        </div>`;
+      }).join('');
+  }
+
+  // 司令塔 + 12部門カード（actor別ロールアップ）
+  const cards=[['_cmd',COMMANDER], ...Object.keys(DEPTS).sort().map(n=>[n,deptMeta(n)])];
+  const gridHtml=cards.map(([key,m])=>{
+    const act=activity[key];
+    const age=act?now-act.lastSeen:Infinity;
+    const cls=age<30000?'active':age<600000?'recent':'';
+    const line=statusLineFor(act, now);
+    const tokTxt=act&&act.tokens?fmtTok(act.tokens):'';
+    return`<div class="agent-card ${cls}" style="--ac:${m.color}">
+      <div class="ac-bar"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <span style="font-size:.66rem;font-weight:700;color:${m.color}">${esc(m.label)}</span>
+        <span class="ac-dot"></span>
+      </div>
+      <div style="font-size:.6rem;color:var(--text-dimmer);font-family:var(--font-mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(line)}">${esc(line)}</div>
+      ${act&&act.count?`<div style="font-size:.58rem;color:var(--text-dimmer);margin-top:4px;font-family:var(--font-mono)">${act.count} ops${tokTxt?' · '+tokTxt:''}</div>`:''}
+    </div>`;
+  }).join('');
+
+  grid.innerHTML=runHtml+gridHtml;
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  Donut chart + Metrics
+// ══════════════════════════════════════════════════════════════════
+function renderDonut(counts){
+  const svg=document.getElementById('donutSvg');
+  const legend=document.getElementById('donutLegend');
+  if(!svg||!legend)return;
+  const total=Object.values(counts).reduce((a,b)=>a+b,0);
+  if(!total){
+    svg.innerHTML='<circle cx="70" cy="70" r="52" fill="none" stroke="#191919" stroke-width="12"/><text x="70" y="75" text-anchor="middle" fill="#444" font-size="13" font-family="SF Mono,Menlo,monospace">—</text>';
+    legend.innerHTML='';
+    return;
+  }
+  const cx=70,cy=70,r=52,sw=14;
+  const circ=2*Math.PI*r;
+  const top=Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,7);
+  let paths='<circle cx="70" cy="70" r="52" fill="none" stroke="#111" stroke-width="14"/>';
+  let offset=0;
+  const startAngle=-Math.PI/2;
+  top.forEach(([name,cnt])=>{
+    const m=TOOL_META[name]||{c:'var(--text-dim)',lbl:name.slice(0,5)};
+    const frac=cnt/total;
+    const dash=frac*circ;
+    const gap=circ-dash;
+    const angle=startAngle+(offset/total)*2*Math.PI;
+    const cosA=Math.cos(angle),sinA=Math.sin(angle);
+    const x=cx+r*cosA,y=cy+r*sinA;
+    const rot=offset/total*360-90;
+    paths+=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${m.c}" stroke-width="${sw}"
+      stroke-dasharray="${dash.toFixed(2)} ${gap.toFixed(2)}"
+      stroke-dashoffset="${(circ-(offset/total)*circ).toFixed(2)}"
+      transform="rotate(${rot} ${cx} ${cy})" style="transition:stroke-dasharray .6s"/>`;
+    offset+=cnt;
+  });
+  const pct=total>0?total.toLocaleString():'—';
+  paths+=`<text x="70" y="68" text-anchor="middle" fill="#ccc" font-size="11" font-family="SF Mono,Menlo,monospace">${pct}</text>`;
+  paths+=`<text x="70" y="81" text-anchor="middle" fill="#555" font-size="8" font-family="SF Mono,Menlo,monospace">calls</text>`;
+  svg.innerHTML=paths;
+  legend.innerHTML=top.map(([name,cnt])=>{
+    const m=TOOL_META[name]||{c:'var(--text-dim)',lbl:name.slice(0,5)};
+    const pct2=(cnt/total*100).toFixed(0);
+    return`<div style="display:flex;align-items:center;gap:5px;font-size:.62rem;font-family:var(--font-mono)">
+      <span style="width:8px;height:8px;border-radius:2px;background:${m.c};flex-shrink:0"></span>
+      <span style="color:var(--text-dim);flex:1">${m.lbl||name.slice(0,5)}</span>
+      <span style="color:${m.c}">${cnt}</span>
+      <span style="color:var(--text-dimmer)">(${pct2}%)</span>
+    </div>`;
+  }).join('');
+}
+
+function renderMetrics(){
+  const total=Object.values(sessions).reduce((a,s)=>a+s.tokens,0);
+  const tenMinAgo=Date.now()-600000;
+  const recentTok=allEvents
+    .filter(e=>e.token_estimate&&new Date(e.ts).getTime()>tenMinAgo)
+    .reduce((a,e)=>a+(e.token_estimate||0),0);
+  const speed=Math.round(recentTok/10);
+  const costYen=(total*15/1_000_000*153).toFixed(1);
+
+  const speedEl=document.getElementById('metSpeed');
+  const costEl=document.getElementById('metCost');
+  if(speedEl)speedEl.textContent=speed>0?'~'+speed:'—';
+  if(costEl)costEl.textContent=total>0?'¥'+costYen:'—';
+
+  const counts={};
+  allEvents.filter(e=>e.event==='pre_tool'&&e.tool_name).forEach(e=>{
+    counts[e.tool_name]=(counts[e.tool_name]||0)+1;
+  });
+  renderDonut(counts);
+
+  const totalCalls=Object.values(counts).reduce((a,b)=>a+b,0)||1;
+  const topTools=Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  const bd=document.getElementById('toolBreakdown');
+  if(!bd)return;
+  if(!topTools.length){
+    bd.innerHTML='<div style="font-size:.7rem;color:var(--text-dimmer)">データなし</div>';
+  }else{
+    bd.innerHTML=topTools.map(([name,cnt])=>{
+      const m=TOOL_META[name]||{c:'var(--text-dim)',lbl:name.slice(0,5)};
+      const pct=(cnt/totalCalls*100).toFixed(0);
+      return`<div class="tool-row">
+        <span class="tool-tag" style="color:${m.c}">${m.lbl||m.s}</span>
+        <div class="tool-track"><div class="tool-fill" style="width:${pct}%;background:${m.c};opacity:.8"></div></div>
+        <span class="tool-ct">${cnt}</span>
+      </div>`;
+    }).join('');
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  Graph
+// ══════════════════════════════════════════════════════════════════
+let graphData = null;
+
+function onConfigChanged(ev) {
+  // Show overlay, then reload after a short delay
+  const overlay = document.getElementById('graphOverlay');
+  overlay.classList.add('visible');
+  setTimeout(async () => {
+    await loadGraph(true);
+    overlay.classList.remove('visible');
+  }, 800);
+}
+
+async function loadGraph(silent = false) {
+  const status = document.getElementById('graphStatus');
+  if (!silent) status.textContent = '読み込み中…';
+  try {
+    const data = await fetch('/api/graph').then(r => r.json());
+    graphData = data;
+    buildAgentReg(data);   // 識別レジストリを構築（稼働中カードの正確な名前・統括/配下に使う）
+    renderGraph(data);
+    status.textContent = `${data.dept_count} 部門 / ${data.agent_count} エージェント — 最終生成: ${new Date(data.generated).toLocaleTimeString('ja-JP')}`;
+  } catch(e) {
+    status.textContent = '⚠️ サーバーに接続できません';
+  }
+}
+
+function xmlesc(s) {
+  return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Estimate pixel width of a mixed CJK+ASCII string
+function strPx(text, fontSize) {
+  const scale = fontSize / 12;
+  let w = 0;
+  for (const ch of String(text)) w += ch.charCodeAt(0) > 0x7F ? 12 : 7;
+  return w * scale;
+}
+
+// ─── Graph helpers ───────────────────────────────────────────────────────────
+
+function filteredSrcs(agent) {
+  return (agent.sources || []).filter(src => {
+    const p = (src.path || '').trim().replace(/`/g, '');
+    // 除外は「空・プレースホルダ（—）・裸の..」のみ。../../shared/… の相対パスは有効なので残す
+    return p && p.length > 1 && p !== '—' && p !== '-' && !/^\.\.\/?$/.test(p);
+  });
+}
+
+function srcLabel(src) {
+  let label = (src.path || '').trim().replace(/`/g, '').replace(/\/+$/, '');  // 末尾スラッシュ除去（フォルダ名が空にならないように）
+  if (label.includes('/')) label = label.split('/').pop();
+  const purpose = (src.purpose || '').replace(/（.*?）/g, '').trim();
+  if (purpose && purpose.length <= 28 && !label.includes('（'))
+    label += '（' + purpose + '）';
+  return label;
+}
+
+function srcIsWeb(src) {
+  const p = (src.path || '').toLowerCase();
+  return p.includes('web') || p.includes('http');
+}
+
+// Obsidian Vault のファイルか（iCloud~md~obsidian パスで判定）
+function srcIsObsidian(src) {
+  return /obsidian/i.test(src.path || '');
+}
+const OBS_COLOR = '#a78bfa';   // Obsidian を示す紫
+
+// Flat leaf list for NON-hierarchical departments (no lead)
+function buildLeaves(dept) {
+  const ls = [];
+  dept.agents.forEach(a => {
+    ls.push({ text: a.name + '（CLAUDE.md）', type: 'agent', agentId: a.id, agentName: a.name });
+    filteredSrcs(a).forEach(src => {
+      ls.push({ text: srcLabel(src), type: srcIsObsidian(src) ? 'obsidian' : srcIsWeb(src) ? 'web' : 'file', path: src.path });
+    });
+  });
+  return ls;
+}
+
+// Row count for hierarchical departments (lead + subordinates)
+function hierRows(dept) {
+  let n = 1; // lead row
+  dept.agents.forEach(a => { n += 1 + filteredSrcs(a).length; });
+  return n;
+}
+
+// ─── renderGraph ─────────────────────────────────────────────────────────────
+
+function renderGraph(data) {
+  const wrap     = document.getElementById('graphSvgWrap');
+  const scrollEl = document.getElementById('graphScroll');
+  const W        = Math.max(scrollEl.clientWidth - 32, 1100);
+
+  // Column positions
+  const LEAF_H   = 21;
+  const DEPT_GAP = 22;
+  const TOP_PAD  = 60;
+  const BOT_PAD  = 60;
+
+  const ROOT_X  = 16;
+  const ROOT_W  = 175;
+  const ROOT_H  = 68;
+  const ROOT_RX = ROOT_X + ROOT_W;       // 191
+
+  const DEPT_CX  = 305;                  // dept pill center x
+  const DEPT_FS  = 11;
+
+  // Non-hierarchical geometry (no lead)
+  const VINE_X   = 465;
+  const LEAF_TX  = 477;
+
+  // Hierarchical geometry (with lead)
+  const LEAD_L   = 405;                  // lead pill left x
+  const LEAD_FS  = 10;
+  const VINE_X2  = 638;                  // secondary vine for subordinates
+  const LEAF_TX2 = 650;
+
+  // ── Build layout ─────────────────────────────────
+  let currentY = TOP_PAD;
+  const layouts = data.departments.map(dept => {
+    const hasLead = !!dept.lead;
+    const rows    = hasLead ? hierRows(dept) : (buildLeaves(dept).length || 1);
+    const h       = rows * LEAF_H;
+    const y       = currentY;
+    currentY     += h + DEPT_GAP;
+    return { dept, y, h, centerY: y + h / 2, hasLead };
+  });
+
+  const svgH        = currentY - DEPT_GAP + BOT_PAD;
+  const rootCenterY = svgH / 2;
+  const rootY       = rootCenterY - ROOT_H / 2;
+
+  // Click target registry (avoids JSON-escaping issues in onclick="...")
+  const _ct = [];   // [{id, name}]
+  window._agentClickTargets = _ct;
+
+  let s = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${svgH}">`;
+  s += `<defs>
+    <filter id="rg" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="5" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="lg" x="-20%" y="-40%" width="140%" height="180%">
+      <feGaussianBlur stdDeviation="3" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>`;
+
+  // ── 1. Lines (behind nodes) ───────────────────────
+  layouts.forEach(({ dept, y, h, centerY, hasLead }) => {
+    const c    = dept.color;
+    const dw   = strPx(dept.label + '部門', DEPT_FS) + 18;
+    const dL   = DEPT_CX - dw / 2;
+    const dR   = DEPT_CX + dw / 2;
+
+    // For hierarchical depts: bezier targets the lead row Y (= dept top row).
+    // This keeps dept label, lead pill, and bezier endpoint all on the same Y.
+    const leadCY = y + LEAF_H / 2;
+    const bY     = hasLead ? leadCY : centerY;
+
+    // Bezier: root right → dept pill left at bY
+    const cpx = ROOT_RX + (dL - ROOT_RX) * 0.55;
+    s += `<path d="M${ROOT_RX},${rootCenterY} C${cpx},${rootCenterY} ${cpx},${bY} ${dL},${bY}"
+      fill="none" stroke="${c}" stroke-width="1.8" opacity="0.75"/>`;
+
+    if (hasLead) {
+      // ── Hierarchical: dept label, lead pill, and bezier are all at leadCY ──
+      // Use the same leadTxt/leadW as the NODES section to get the exact pill width
+      const leadTxt = dept.lead.name.replace(/エージェント$/, '').trim();
+      const leadW   = strPx(leadTxt, LEAD_FS) + 22;
+      const leadR   = LEAD_L + leadW;
+
+      // Straight horizontal: dept pill right → lead pill left (all at leadCY)
+      s += `<line x1="${dR}" y1="${leadCY}" x2="${LEAD_L}" y2="${leadCY}"
+        stroke="${c}" stroke-width="1.3" opacity="0.6"/>`;
+      // Lead pill right → secondary vine (also at leadCY)
+      s += `<line x1="${leadR}" y1="${leadCY}" x2="${VINE_X2}" y2="${leadCY}"
+        stroke="${c}" stroke-width="1.2" opacity="0.5"/>`;
+
+      // Secondary vine: extends from leadCY all the way to last subordinate row
+      // (no gap between the lead horizontal and the vine)
+      if (dept.agents.length > 0) {
+        let lastRowIdx = 1;
+        dept.agents.forEach(a => { lastRowIdx += 1 + filteredSrcs(a).length; });
+        const subBottom = y + (lastRowIdx - 1) * LEAF_H + LEAF_H / 2;
+        s += `<line x1="${VINE_X2}" y1="${leadCY}" x2="${VINE_X2}" y2="${subBottom}"
+          stroke="${c}" stroke-width="1" opacity="0.4"/>`;
+
+        // Ticks from secondary vine to each sub row
+        let rowIdx = 1;
+        dept.agents.forEach(a => {
+          const aly = y + rowIdx * LEAF_H + LEAF_H / 2;
+          s += `<line x1="${VINE_X2}" y1="${aly}" x2="${LEAF_TX2 - 5}" y2="${aly}"
+            stroke="${c}" stroke-width="1" opacity="0.4"/>`;
+          rowIdx++;
+          filteredSrcs(a).forEach(() => {
+            const sly = y + rowIdx * LEAF_H + LEAF_H / 2;
+            s += `<line x1="${VINE_X2}" y1="${sly}" x2="${LEAF_TX2 - 5}" y2="${sly}"
+              stroke="${c}" stroke-width="1" opacity="0.35"/>`;
+            rowIdx++;
+          });
+        });
+      }
+
+    } else {
+      // ── Non-hierarchical (司令塔直接) ──
+      const leaves = buildLeaves(dept);
+      if (!leaves.length) return;
+
+      s += `<line x1="${dR}" y1="${centerY}" x2="${VINE_X}" y2="${centerY}"
+        stroke="${c}" stroke-width="1.3" opacity="0.6"/>`;
+
+      const vTop = y + LEAF_H / 2;
+      const vBot = y + (leaves.length - 1) * LEAF_H + LEAF_H / 2;
+      if (leaves.length > 1)
+        s += `<line x1="${VINE_X}" y1="${vTop}" x2="${VINE_X}" y2="${vBot}"
+          stroke="${c}" stroke-width="1" opacity="0.45"/>`;
+
+      leaves.forEach((_, li) => {
+        const ly = y + li * LEAF_H + LEAF_H / 2;
+        s += `<line x1="${VINE_X}" y1="${ly}" x2="${LEAF_TX - 5}" y2="${ly}"
+          stroke="${c}" stroke-width="1" opacity="0.45"/>`;
+      });
+    }
+  });
+
+  // ── 2. Root box (clickable) ───────────────────────
+  const cmdIdx = _ct.length;
+  _ct.push({ id: '_commander', name: '司令塔エージェント' });
+  s += `<g onclick="handleAgentClick(${cmdIdx})" style="cursor:pointer" title="CLAUDE.md を開く">
+    <rect x="${ROOT_X}" y="${rootY}" width="${ROOT_W}" height="${ROOT_H}" rx="12"
+      fill="#0a1628" stroke="#7aadff" stroke-width="2.2" filter="url(#rg)"/>`;
+  const rcx = ROOT_X + ROOT_W / 2;
+  s += `<text x="${rcx}" y="${rootY+21}" text-anchor="middle"
+      fill="#7aadff" font-family="Helvetica Neue,Arial" font-size="12.5" font-weight="800">司令塔エージェント</text>
+    <text x="${rcx}" y="${rootY+36}" text-anchor="middle"
+      fill="#4a7aaa" font-family="Helvetica Neue,Arial" font-size="9.5">（CLAUDE.md）</text>
+    <text x="${rcx}" y="${rootY+52}" text-anchor="middle"
+      fill="#2a4a6a" font-family="Helvetica Neue,Arial" font-size="8.5">発令 / 統合 / 司令</text>
+  </g>`;
+
+  // ── 3. Dept labels + agent nodes ─────────────────
+  layouts.forEach(({ dept, y, centerY, hasLead }) => {
+    const c      = dept.color;
+    const lbl    = dept.label + '部門';
+    const dw     = strPx(lbl, DEPT_FS) + 18;
+    const px     = DEPT_CX - dw / 2;
+    const leadCY = y + LEAF_H / 2;
+    // For hierarchical depts, dept label aligns with lead at leadCY (no L-shape)
+    const labelY = hasLead ? leadCY : centerY;
+
+    // Dept pill
+    s += `<rect x="${px}" y="${labelY-11}" width="${dw}" height="22" rx="11"
+        fill="#181818" stroke="${c}" stroke-width="1.4"/>
+      <text x="${DEPT_CX}" y="${labelY+4.5}" text-anchor="middle"
+        fill="${c}" font-family="Helvetica Neue,Arial" font-size="${DEPT_FS}" font-weight="700">
+        ${xmlesc(lbl)}
+      </text>`;
+
+    if (hasLead) {
+      // ── Hierarchical: lead pill as intermediate node ──
+      // "資産分析 部門長エージェント" → "資産分析 部門長"
+      const leadTxt = dept.lead.name.replace(/エージェント$/, '').trim();
+      const leadW   = strPx(leadTxt, LEAD_FS) + 22;
+      const leadH   = 20;
+
+      const leadIdx = _ct.length;
+      _ct.push({ id: dept.lead.id, name: dept.lead.name });
+      s += `<g onclick="handleAgentClick(${leadIdx})" style="cursor:pointer" title="CLAUDE.md を開く">
+        <rect x="${LEAD_L}" y="${leadCY - leadH/2}" width="${leadW}" height="${leadH}" rx="10"
+          fill="#111a08" stroke="${c}" stroke-width="1.8" filter="url(#lg)"/>
+        <text x="${LEAD_L + leadW/2}" y="${leadCY+4}" text-anchor="middle"
+          fill="${c}" font-family="Helvetica Neue,Arial" font-size="${LEAD_FS}" font-weight="700">
+          ${xmlesc(leadTxt)}
+        </text>
+      </g>`;
+
+      // Draw subordinate agents + their sources
+      const maxPx2 = W - LEAF_TX2 - 12;
+      let rowIdx   = 1;
+      dept.agents.forEach(a => {
+        const aly = y + rowIdx * LEAF_H + LEAF_H / 2;
+
+        const aIdx = _ct.length;
+        _ct.push({ id: a.id, name: a.name });
+        let albl = a.name + '（CLAUDE.md）';
+        while (albl.length > 6 && strPx(albl, 10.5) > maxPx2)
+          albl = albl.slice(0, -2) + '…';
+        s += `<g onclick="handleAgentClick(${aIdx})" style="cursor:pointer" title="CLAUDE.md を開く">
+          <rect x="${LEAF_TX2 - 10}" y="${aly - LEAF_H/2}" width="${W - LEAF_TX2 + 10}" height="${LEAF_H}"
+            fill="transparent"/>
+          <circle cx="${LEAF_TX2 - 2}" cy="${aly}" r="2.5" fill="${c}" opacity="0.85"/>
+          <text x="${LEAF_TX2 + 6}" y="${aly+4}" fill="#d0d0d0"
+            font-family="Helvetica Neue,Arial" font-size="10.5" font-weight="600">
+            ${xmlesc(albl)}
+          </text>
+        </g>`;
+        rowIdx++;
+
+        filteredSrcs(a).forEach(src => {
+          const sly  = y + rowIdx * LEAF_H + LEAF_H / 2;
+          const isWeb = srcIsWeb(src);
+          const isObs = srcIsObsidian(src);
+          
+          const isClickable = !isWeb && src.path && (src.path.endsWith('.md') || src.path.endsWith('.txt') || src.path.endsWith('.csv') || src.path.endsWith('.json'));
+          const fill  = isObs ? OBS_COLOR : (isClickable ? '#7aadff' : (isWeb ? '#52c8c8' : '#666'));
+          const onClick = isClickable ? `onclick="openGenericEditor('${esc(src.path||'')}', '${esc(basename(src.path||''))}')" style="cursor:pointer; text-decoration: ${isObs ? 'underline' : 'none'};"` : '';
+
+          s += `<circle cx="${LEAF_TX2 - 2}" cy="${sly}" r="2" fill="${fill}" opacity="0.6"/>`;
+          let slbl = (isObs ? '◆ ' : '') + srcLabel(src);
+          while (slbl.length > 6 && strPx(slbl, 10) > maxPx2)
+            slbl = slbl.slice(0, -2) + '…';
+          s += `<text x="${LEAF_TX2 + 6}" y="${sly+4}" fill="${fill}"
+            font-family="Helvetica Neue,Arial" font-size="10" ${onClick}>
+            ${xmlesc(slbl)}
+          </text>`;
+          rowIdx++;
+        });
+      });
+
+    } else {
+      // ── Non-hierarchical: flat leaf list ──
+      const leaves = buildLeaves(dept);
+      const maxPx  = W - LEAF_TX - 12;
+      leaves.forEach((leaf, li) => {
+        const ly      = y + li * LEAF_H + LEAF_H / 2;
+        const isAgent = leaf.type === 'agent';
+        const isWeb   = leaf.type === 'web';
+        const isObs   = leaf.type === 'obsidian';
+        const fill    = isAgent ? '#cccccc' : isWeb ? '#52c8c8' : isObs ? OBS_COLOR : '#666';
+        const fw      = isAgent ? '600' : isObs ? '600' : '400';
+        const fs      = isAgent ? 10.5 : 10;
+        const dotC    = isAgent ? c : isWeb ? '#52c8c8' : isObs ? OBS_COLOR : '#444';
+        const dotR    = isAgent ? 2.5 : 2;
+
+        let label = (isObs ? '◆ ' : '') + leaf.text;
+        while (label.length > 6 && strPx(label, fs) > maxPx)
+          label = label.slice(0, -2) + '…';
+
+        if (isAgent && leaf.agentId) {
+          const aIdx = _ct.length;
+          _ct.push({ id: leaf.agentId, name: leaf.agentName });
+          s += `<g onclick="handleAgentClick(${aIdx})" style="cursor:pointer" title="CLAUDE.md を開く">
+            <rect x="${LEAF_TX - 10}" y="${ly - LEAF_H/2}" width="${W - LEAF_TX + 10}" height="${LEAF_H}"
+              fill="transparent"/>
+            <circle cx="${LEAF_TX - 2}" cy="${ly}" r="${dotR}" fill="${dotC}" opacity="0.75"/>
+            <text x="${LEAF_TX + 6}" y="${ly+4}" fill="${fill}"
+              font-family="Helvetica Neue,Arial" font-size="${fs}" font-weight="${fw}">
+              ${xmlesc(label)}
+            </text>
+          </g>`;
+        } else {
+          const srcPath = leaf.path || '';
+          const isClickable = leaf.type !== 'web' && srcPath && (srcPath.endsWith('.md') || srcPath.endsWith('.txt') || srcPath.endsWith('.csv') || srcPath.endsWith('.json'));
+          const isObs = leaf.type === 'obsidian';
+          const finalFill = isObs ? OBS_COLOR : (isClickable ? '#7aadff' : fill);
+          const onClick = isClickable ? `onclick="openGenericEditor('${esc(srcPath)}', '${esc(basename(srcPath))}')" style="cursor:pointer; text-decoration: ${isObs ? 'underline' : 'none'};"` : '';
+
+          s += `<circle cx="${LEAF_TX - 2}" cy="${ly}" r="${dotR}" fill="${dotC}" opacity="0.75"/>`;
+          s += `<text x="${LEAF_TX + 6}" y="${ly+4}" fill="${finalFill}"
+            font-family="Helvetica Neue,Arial" font-size="${fs}" font-weight="${fw}" ${onClick}>
+            ${xmlesc(label)}
+          </text>`;
+        }
+      });
+    }
+  });
+
+  // ── 4. Legend ─────────────────────────────────────
+  const legend = [
+    { color: '#b8a840', label: '部門長（逐次パイプライン管理）', shape: 'pill' },
+    { color: '#ccc',    label: 'エージェント（CLAUDE.md）',     dotR: 2.5    },
+    { color: '#52c8c8', label: 'WebSearch / WebFetch',         dotR: 2      },
+    { color: OBS_COLOR, label: '◆ Obsidian Vault',            dotR: 2      },
+    { color: '#555',    label: 'データファイル',                 dotR: 2      },
+  ];
+  let lx = 20, ly2 = svgH - 22;
+  legend.forEach(item => {
+    if (item.shape === 'pill') {
+      s += `<rect x="${lx}" y="${ly2-6}" width="22" height="12" rx="6"
+        fill="#111a08" stroke="${item.color}" stroke-width="1.4"/>`;
+      lx += 28;
+    } else {
+      s += `<circle cx="${lx+5}" cy="${ly2}" r="${item.dotR}" fill="${item.color}"/>`;
+      lx += 14;
+    }
+    s += `<text x="${lx}" y="${ly2+4}" fill="#555"
+      font-family="Helvetica Neue,Arial" font-size="9.5">${xmlesc(item.label)}</text>`;
+    lx += strPx(item.label, 9.5) + 20;
+  });
+
+  s += '</svg>';
+  wrap.innerHTML = s;
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  Capabilities
+// ══════════════════════════════════════════════════════════════════
+function permClass(p){if(!p)return'perm-r';const l=p.toLowerCase();if(l.includes('web'))return'perm-web';if(l.includes('読み書き')||l.includes('rw'))return'perm-rw';if(l.includes('書き')||l==='w')return'perm-w';return'perm-r';}
+function permLabel(p){if(!p)return'R';const l=p.toLowerCase();if(l.includes('web'))return'WEB';if(l.includes('読み書き')||l.includes('rw'))return'R/W';if(l.includes('書き')||l==='w')return'W';return'R';}
+async function loadCapabilities(){
+  try{
+    const data=await fetch('/api/capabilities').then(r=>r.json());
+    const grid=document.getElementById('capGrid');
+    if(!data.length){grid.innerHTML='<div class="empty-state"><div class="icon">📭</div>エージェントなし</div>';return;}
+    grid.innerHTML=data.map(a=>{
+      const srcs=a.sources.length
+        ?a.sources.map(s=>{
+          const srcPath = s.path || '';
+          const isClickable = srcPath && !srcPath.toLowerCase().includes('web') && (srcPath.endsWith('.md') || srcPath.endsWith('.txt') || srcPath.endsWith('.csv') || srcPath.endsWith('.json'));
+          const isObs = srcPath.toLowerCase().includes('obsidian');
+          const finalColor = isObs ? OBS_COLOR : 'var(--blue)';
+          const onClick = isClickable ? `onclick="openGenericEditor('${esc(srcPath)}', '${esc(basename(srcPath))}')" style="cursor:pointer;color:${finalColor};text-decoration:underline;"` : '';
+          return `<div class="cap-source"><span class="cap-perm ${permClass(s.permission)}">${permLabel(s.permission)}</span><span class="cap-path" title="${esc(s.path)}" ${onClick}>${esc(basename(s.path)||s.path)}</span></div>`;
+        }).join('')
+        :'<span style="color:var(--text-dimmer);font-size:.72rem">データソースなし</span>';
+      return`<div class="cap-card" style="border-left-color:${a.color}"><div class="cap-header"><span class="cap-id">${esc(a.id)}</span></div><div class="cap-name">${esc(a.name)}</div><div class="cap-role">${esc(a.role)}${a.role.length>=180?'…':''}</div><div class="cap-sources">${srcs}</div></div>`;
+    }).join('');
+  }catch(e){document.getElementById('capGrid').innerHTML='<div class="empty-state"><div class="icon">⚠️</div>接続エラー</div>';}
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  Results
+// ══════════════════════════════════════════════════════════════════
+async function loadResults(){
+  try{
+    const files=await fetch('/api/reports').then(r=>r.json());
+    const list=document.getElementById('resultsList');
+    if(!files.length){list.innerHTML='<div class="empty-state"><div class="icon">📂</div>レポートなし</div>';return;}
+    list.innerHTML=files.map(f=>`<div class="result-card"><div class="result-icon">${f.ext==='.html'?'📄':'📝'}</div><div class="result-info"><div class="result-name" title="${esc(f.name)}">${esc(f.name)}</div><div class="result-meta">${fmtDate(f.modified)} · ${fmtSize(f.size)}</div></div><a class="result-open" href="/reports/${encodeURIComponent(f.name)}" target="_blank" rel="noopener">開く →</a></div>`).join('');
+  }catch(e){document.getElementById('resultsList').innerHTML='<div class="empty-state"><div class="icon">⚠️</div>接続エラー</div>';}
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  CLAUDE.md Editor
+// ══════════════════════════════════════════════════════════════════
+let _editorFolder = null;
+
+function handleAgentClick(idx) {
+  const t = (window._agentClickTargets || [])[idx];
+  if (t) openEditor(t.id, t.name);
+}
+
+let _editorPath = null;
+
+async function openGenericEditor(path, name) {
+  _editorFolder = null;
+  _editorPath = path;
+  const overlay  = document.getElementById('editorOverlay');
+  const titleEl  = document.getElementById('editorTitle');
+  const pathEl   = document.getElementById('editorPath');
+  const ta       = document.getElementById('editorTextarea');
+  const statusEl = document.getElementById('editorStatus');
+  const saveBtn  = document.getElementById('editorSaveBtn');
+
+  titleEl.textContent  = name;
+  pathEl.textContent   = '読み込み中…';
+  ta.value             = '';
+  ta.placeholder       = '読み込み中…';
+  statusEl.textContent = '';
+  statusEl.style.color = '';
+  saveBtn.disabled     = true;
+  overlay.classList.add('visible');
+
+  try {
+    const res  = await fetch('/api/read_file', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path })
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    pathEl.textContent  = data.path;
+    ta.value            = data.content;
+    ta.placeholder      = '';
+    saveBtn.disabled    = false;
+    ta.focus();
+  } catch(e) {
+    statusEl.textContent = '⚠ 読み込み失敗: ' + e.message;
+    statusEl.style.color = 'var(--red)';
+    pathEl.textContent   = 'エラー';
+  }
+}
+
+async function openEditor(folder, name) {
+  _editorFolder = folder;
+  _editorPath = null;
+  const overlay  = document.getElementById('editorOverlay');
+  const titleEl  = document.getElementById('editorTitle');
+  const pathEl   = document.getElementById('editorPath');
+  const ta       = document.getElementById('editorTextarea');
+  const statusEl = document.getElementById('editorStatus');
+  const saveBtn  = document.getElementById('editorSaveBtn');
+
+  titleEl.textContent  = name + ' — CLAUDE.md';
+  pathEl.textContent   = '読み込み中…';
+  ta.value             = '';
+  ta.placeholder       = '読み込み中…';
+  statusEl.textContent = '';
+  statusEl.style.color = '';
+  saveBtn.disabled     = true;
+  overlay.classList.add('visible');
+
+  try {
+    const res  = await fetch(`/api/agent/${encodeURIComponent(folder)}/claude_md`);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    pathEl.textContent  = data.path;
+    ta.value            = data.content;
+    ta.placeholder      = '';
+    saveBtn.disabled    = false;
+    ta.focus();
+  } catch(e) {
+    statusEl.textContent = '⚠ 読み込み失敗: ' + e.message;
+    statusEl.style.color = 'var(--red)';
+    pathEl.textContent   = 'エラー';
+  }
+}
+
+function closeEditor() {
+  document.getElementById('editorOverlay').classList.remove('visible');
+  _editorFolder = null;
+  _editorPath = null;
+}
+
+async function saveEditor() {
+  if (!_editorFolder && !_editorPath) return;
+  const content   = document.getElementById('editorTextarea').value;
+  const statusEl  = document.getElementById('editorStatus');
+  const saveBtn   = document.getElementById('editorSaveBtn');
+
+  statusEl.textContent = '保存中…';
+  statusEl.style.color = 'var(--text-dimmer)';
+  saveBtn.disabled     = true;
+
+  try {
+    let res;
+    if (_editorFolder) {
+      res = await fetch(`/api/agent/${encodeURIComponent(_editorFolder)}/claude_md`, {
+        method:  'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ content }),
+      });
+    } else {
+      res = await fetch('/api/write_file', {
+        method:  'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ path: _editorPath, content }),
+      });
+    }
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    statusEl.textContent = '✓ 保存完了 — ' + data.path;
+    statusEl.style.color = 'var(--green)';
+    // Refresh graph after short delay so watcher also picks it up
+    setTimeout(() => { if (graphData) loadGraph(); }, 800);
+  } catch(e) {
+    statusEl.textContent = '⚠ 保存失敗: ' + e.message;
+    statusEl.style.color = 'var(--red)';
+  } finally {
+    saveBtn.disabled = false;
+  }
+}
+
+// Keyboard shortcuts for editor
+document.addEventListener('keydown', e => {
+  const overlay = document.getElementById('editorOverlay');
+  if (!overlay.classList.contains('visible')) return;
+  if (e.key === 'Escape') { closeEditor(); return; }
+  if (e.key === 's' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); saveEditor(); }
+});
+
+// ══════════════════════════════════════════════════════════════════
+//  Tabs
+// ══════════════════════════════════════════════════════════════════
+function switchTab(name){
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelector(`[onclick="switchTab('${name}')"]`).classList.add('active');
+  document.getElementById(`panel-${name}`).classList.add('active');
+  if(name==='graph')       loadGraph();
+  if(name==='capabilities')loadCapabilities();
+  if(name==='results')     loadResults();
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  SSE connection
+// ══════════════════════════════════════════════════════════════════
+function connect(){
+  const es=new EventSource('/api/events/stream');
+  const dot=document.getElementById('liveDot'),lbl=document.getElementById('liveLabel');
+  es.onopen=()=>{dot.classList.add('active');lbl.classList.add('active');lbl.textContent='Live';};
+  es.onerror=()=>{dot.classList.remove('active');lbl.classList.remove('active');lbl.textContent='再接続中…';setTimeout(connect,3000);es.close();};
+  es.onmessage=e=>{try{ingestEvent(JSON.parse(e.data));}catch(_){}};
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  Init
+// ══════════════════════════════════════════════════════════════════
+async function loadSystemStats() {
+  try {
+    const res = await fetch('/api/stats');
+    if (res.ok) {
+      const d = await res.json();
+      if (d.departments) {
+        document.getElementById('sysStats').innerHTML = `
+          <span><b style="color:var(--blue)">${d.departments}</b> Departments (<b style="color:var(--blue)">${d.agents}</b> Agents)</span>
+          <span>Instructions: <b style="color:var(--green)">${d.prompt_chars.toLocaleString()}</b> 文字</span>
+          <span><b style="color:var(--yellow)">${d.folders}</b> Folders / <b style="color:var(--yellow)">${d.files}</b> Files</span>
+        `;
+      }
+    }
+  } catch(e) {}
+}
+
+setInterval(()=>{document.getElementById('clock').textContent=new Date().toLocaleTimeString('ja-JP');},1000);
+document.getElementById('clock').textContent=new Date().toLocaleTimeString('ja-JP');
+document.getElementById('panel-monitor').classList.add('active');
+loadSystemStats();
+setInterval(loadSystemStats, 60000);
+
+// resize → re-render graph if visible
+window.addEventListener('resize',()=>{
+  if(graphData&&document.getElementById('panel-graph').classList.contains('active'))
+    renderGraph(graphData);
+});
+
+connect();
+loadAgentGrid();
+loadGraph(true);   // 起動時に識別レジストリ(AGENT_REG)を構築しておく（Graphタブ未表示でも識別が効く）
+
+// 新イベントが来なくても稼働状態（active→recent→待機）が時間で減衰するよう定期再描画
+setInterval(()=>{ updateStats(); renderAgentGrid(); if(allEvents.length) renderFeed(); }, 3000);
+</script>
+</body>
+</html>

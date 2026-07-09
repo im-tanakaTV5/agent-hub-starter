@@ -1,0 +1,40 @@
+{
+  "_comment": "Antigravity CLI用フックのテンプレート。セットアップ時に {{HUB_PATH}} を置換して .agents/hooks.json として保存する",
+  "dashboard-logger": {
+    "PreToolUse": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 {{HUB_PATH}}/dashboard/log_hook.py pre_tool",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 {{HUB_PATH}}/dashboard/log_hook.py post_tool",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 {{HUB_PATH}}/dashboard/log_hook.py stop",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
