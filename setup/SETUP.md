@@ -66,6 +66,7 @@
 5. **`shared/` のデータ置き場** — 部門ごとにフォルダを作る。既存の記録ファイル（Excel等）があれば置き場所を案内し、なければ空のファイル（見出し行だけのCSV等）を作って記録の型を提案する。
 6. **`hub.config.json`** — `hub.config.example.json` を元に、実際のパス・連携のon/offを記入。**`setup_completed` はPhase 4の検証が終わるまで空のままにする。**
 7. **フック設定** — `.claude/settings.template.json` の `{{HUB_PATH}}`(このリポジトリの絶対パス)と `{{PYTHON_CMD}}`(`python3` が使えるか確認し、なければ `python`。Windowsは通常 `python`)を置換して `.claude/settings.json` を生成(ダッシュボード有効時。無効なら sync フック部分だけ)。
+   - **【Windows必須】`{{HUB_PATH}}` は必ずスラッシュ区切りで書く**（例：`C:/Users/taro/agent-hub`）。バックスラッシュ（`C:\Users\...`）をそのまま入れるとJSONのエスケープ文字と衝突して**設定ファイル全体が壊れ、フックが一切動かなくなる**。PythonはWindowsでもスラッシュ区切りのパスをそのまま扱えるので問題ない。生成後は必ずJSONとしてパースできるか検証すること（`{{PYTHON_CMD}} -c "import json;json.load(open('.claude/settings.json'))"` が黙って成功すればOK）。
 
 ## Phase 3：外部連携（希望されたものだけ）
 

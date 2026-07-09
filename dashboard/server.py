@@ -130,7 +130,7 @@ def chat_with_claude(message: str, history: list) -> dict:
     except subprocess.TimeoutExpired:
         return {'error': 'タイムアウト（5分）— 複雑な指示は分割してください'}
     except FileNotFoundError:
-        return {'error': '`claude` コマンドが PATH に見つかりません。ターミナルで `which claude` を確認してください。'}
+        return {'error': '`claude` コマンドが PATH に見つかりません。ターミナルで確認してください（Mac: `which claude` ／ Windows: `where claude`）。'}
     except Exception as e:
         return {'error': str(e)}
 

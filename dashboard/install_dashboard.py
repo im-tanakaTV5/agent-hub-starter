@@ -54,11 +54,18 @@ def install_windows():
     server_py = DASHBOARD / 'server.py'
     log_out = DASHBOARD / 'logs' / 'server.out.log'
 
+    # start へのリダイレクトは切り離された子プロセスに適用されないため、
+    # cmd /c で包んでリダイレクトごと子プロセス側で実行させる（外側の "" はcmdの引用符ルール対策）
     bat_content = (
         '@echo off\r\n'
-        f'start "" /min "{runner}" "{server_py}" >> "{log_out}" 2>&1\r\n'
+        f'start "" /min cmd /c ""{runner}" "{server_py}" >> "{log_out}" 2>&1"\r\n'
     )
-    bat_path.write_text(bat_content, encoding='utf-8')
+    # cmdはバッチをANSI（日本語環境ではcp932）で解釈するため、UTF-8ではなく
+    # システムのANSIコードページで書く（日本語ユーザー名のパスの文字化けを防ぐ）
+    try:
+        bat_path.write_text(bat_content, encoding='mbcs')
+    except (UnicodeEncodeError, LookupError):
+        bat_path.write_text(bat_content, encoding='utf-8')
 
     print(f"✅ ダッシュボードをスタートアップに登録しました: {bat_path}")
     print("   次回ログイン時から自動起動します。今すぐ試したい場合は下記を実行してください。")
