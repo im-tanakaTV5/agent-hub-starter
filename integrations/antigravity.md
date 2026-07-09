@@ -10,20 +10,22 @@
 ```
 CLAUDE.md ＋ framework/*.md ＋ .agents/ANTIGRAVITY_SUPPLEMENT.md
         │
-        └─ scripts/sync_agents_md.sh ──→ .agents/AGENTS.md（自動生成・直接編集禁止）
+        └─ scripts/sync_agents_md.py ──→ .agents/AGENTS.md（自動生成・直接編集禁止）
 ```
 
 - ルートの `AGENTS.md` は「`.agents/AGENTS.md` を読め」というポインタ（Antigravityに確実に読ませるため）。
 - `.agents/ANTIGRAVITY_SUPPLEMENT.md` に読み替えルール（`Agent`→`start_subagent`、モデルティア対応、Chrome操作の代替）が書いてある。ハーネス固有の差分はこのファイルにだけ書く。
+- 生成スクリプトは純粋なPython製で **Mac / Windows / Linux 共通**（bash不要）。
 
 ## 手順
 
-1. 生成スクリプトを一度実行する（Claudeが実行）：
+1. 生成スクリプトを一度実行する（Claudeが実行。どのOSでも同じコマンド）：
    ```bash
-   bash scripts/sync_agents_md.sh
+   python3 scripts/sync_agents_md.py
    ```
+   ※ Windowsで `python3` が見つからない場合は `python` を試す。
 2. Claude Code側のフックを有効にしていれば（`.claude/settings.json`）、以後 CLAUDE.md や framework/ を編集するたびに自動で再生成される。
-3. Antigravity側のフック（ダッシュボード連携）を使う場合は、`.agents/hooks.template.json` の `{{HUB_PATH}}` をこのリポジトリの絶対パスに置換して `.agents/hooks.json` として保存する（Claudeが実施）。
+3. Antigravity側のフック（ダッシュボード連携）を使う場合は、`.agents/hooks.template.json` の `{{HUB_PATH}}` と `{{PYTHON_CMD}}` をこのリポジトリの絶対パスと実際のPythonコマンドに置換して `.agents/hooks.json` として保存する（Claudeが実施）。
 4. `hub.config.json` の `integrations.antigravity` を `true` にする。
 
 ## 運用ルール（重要）

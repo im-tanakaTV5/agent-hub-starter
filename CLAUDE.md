@@ -45,7 +45,7 @@ Claude（またはAntigravity CLI）がこのファイルを読んだら、**ま
 
 ## ハーネス互換（Claude Code / Antigravity CLI）
 
-- 指示書は **CLAUDE.md ＋ framework/ ＋ my-hub/ が単一ソース（正）**。`.agents/AGENTS.md` は自動生成ファイルであり**直接編集禁止**（`scripts/sync_agents_md.sh` が生成）。
-- Claude Code では PostToolUse フックが CLAUDE.md / framework/ の編集を検知して自動再生成する。手動実行は `bash scripts/sync_agents_md.sh`。
+- 指示書は **CLAUDE.md ＋ framework/ ＋ my-hub/ が単一ソース（正）**。`.agents/AGENTS.md` は自動生成ファイルであり**直接編集禁止**（`scripts/sync_agents_md.py` が生成）。
+- Claude Code では PostToolUse フックが CLAUDE.md / framework/ の編集を検知して自動再生成する。手動実行は `python3 scripts/sync_agents_md.py`（Windowsは `python` の場合あり）。
 - ルートの `AGENTS.md` は Antigravity に `.agents/AGENTS.md` を読ませるためのポインタ（数行）。Claude Code は無視してよい。
 - ハーネス固有の読み替えルールは `.agents/ANTIGRAVITY_SUPPLEMENT.md` に書く。CLAUDE.md本文はハーネス中立を保つ。

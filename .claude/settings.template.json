@@ -1,5 +1,5 @@
 {
-  "_comment": "このファイルはテンプレート。セットアップ時に {{HUB_PATH}} を実際の絶対パスに置換して .claude/settings.json として保存する（Claudeがセットアップ中に自動でやる）",
+  "_comment": "このファイルはテンプレート。セットアップ時に {{HUB_PATH}}（このリポジトリの絶対パス）と {{PYTHON_CMD}}（python3 または python。Windowsは通常 python）を実際の値に置換して .claude/settings.json として保存する（Claudeがセットアップ中に自動でやる）",
   "hooks": {
     "PreToolUse": [
       {
@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 {{HUB_PATH}}/dashboard/log_hook.py pre_tool"
+            "command": "{{PYTHON_CMD}} {{HUB_PATH}}/dashboard/log_hook.py pre_tool"
           }
         ]
       }
@@ -18,7 +18,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 {{HUB_PATH}}/dashboard/log_hook.py post_tool"
+            "command": "{{PYTHON_CMD}} {{HUB_PATH}}/dashboard/log_hook.py post_tool"
           }
         ]
       },
@@ -27,7 +27,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash {{HUB_PATH}}/scripts/claude_md_sync_hook.sh"
+            "command": "{{PYTHON_CMD}} {{HUB_PATH}}/scripts/claude_md_sync_hook.py"
           }
         ]
       }
@@ -37,7 +37,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 {{HUB_PATH}}/dashboard/log_hook.py stop"
+            "command": "{{PYTHON_CMD}} {{HUB_PATH}}/dashboard/log_hook.py stop"
           }
         ]
       }

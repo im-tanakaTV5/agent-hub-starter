@@ -11,4 +11,4 @@
 - **Web操作**：「Claude in Chrome」の節は本環境では使えない。ブラウザ操作が必要な場合、本環境にブラウザ操作ツールがあればそれで代替し、なければ正直に本人へ手順を案内する。**操作結果の捏造は禁止**（この原則はハーネスに関係なく適用）。
 - **WebSearch / WebFetch**：本環境の同等ツール（Web検索・URL取得）に読み替える。**出典名＋取得日の併記ルールはそのまま適用する。**
 - **起動場所**：必ずリポジトリのルート（agent-hub直下）から起動する。サブフォルダから起動すると指示書が読み込まれない。
-- **このファイル（.agents/AGENTS.md）は自動生成**：`CLAUDE.md`（単一ソース）＋ `framework/*.md` ＋ `.agents/ANTIGRAVITY_SUPPLEMENT.md` から `scripts/sync_agents_md.sh` で生成される。**直接編集禁止**（次回生成で消える）。指示を変更するときは元ファイルを編集して同スクリプトを実行する。
+- **このファイル（.agents/AGENTS.md）は自動生成**：`CLAUDE.md`（単一ソース）＋ `framework/*.md` ＋ `.agents/ANTIGRAVITY_SUPPLEMENT.md` から `scripts/sync_agents_md.py` で生成される。**直接編集禁止**（次回生成で消える）。指示を変更するときは元ファイルを編集して同スクリプト（`python3 scripts/sync_agents_md.py`。Windowsは `python` の場合あり）を実行する。

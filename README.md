@@ -8,24 +8,25 @@
 
 ## 必要なもの
 
-- Mac（Windowsでも大部分は動きますが、手順はMac前提で書かれています）
-- [Claude Code](https://claude.com/claude-code)（AnthropicのAIエージェント。有料プラン推奨——サブエージェントを多用します）
+- **Mac または Windows**（このキット自体はどちらでも同じように動くよう作られています。自動起動の仕組みだけOSに応じて自動で切り替わります）
+- [Claude Code](https://claude.com/claude-code)（AnthropicのAIエージェント。有料プラン推奨——サブエージェントを多用します）。Windowsでの動作要件（ネイティブ対応かWSL経由か）は公式サイトの最新情報を確認してください。
+- **Python 3**（ダッシュボードや自動同期の実行に使う）。Windowsで未インストールの場合は python.org からインストールし、インストーラーで「Add python.exe to PATH」に必ずチェックを入れてください。
 
 ## はじめかた（3ステップ）
 
 1. **このリポジトリを手に入れる**
-   - ターミナルを開いて（Macなら Launchpad →「ターミナル」で検索）：
+   - ターミナルを開いて（Macなら Launchpad →「ターミナル」、Windowsなら PowerShell を検索）：
      ```bash
-     git clone （このリポジトリのURL） ~/agent-hub
-     cd ~/agent-hub
+     git clone （このリポジトリのURL） agent-hub
+     cd agent-hub
      ```
-   - gitが分からなければ、GitHubの「Code > Download ZIP」でダウンロードして解凍し、そのフォルダでターミナルを開いてもOK。
+   - gitが分からなければ、GitHubの「Code > Download ZIP」でダウンロードして解凍し、そのフォルダでターミナル/PowerShellを開いてもOK。
 2. **Claude Code を起動する**
    ```bash
    claude
    ```
 3. **「セットアップ」と入力する**
-   - あとはClaudeが質問しながら、あなた専用の司令塔・部門・データ置き場を組み立てます（15〜30分）。
+   - あとはClaudeが質問しながら、あなた専用の司令塔・部門・データ置き場を組み立てます（15〜30分）。OS判定やPythonコマンドの違い（`python3`/`python`）もClaudeが自動で吸収します。
    - 途中でやめても、次回また「セットアップ」と言えば続きから再開できます。
 
 ## セットアップ後の使い方

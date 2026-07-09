@@ -46,6 +46,12 @@
 
 ## Phase 2：生成（Claudeが自動で行う）
 
+**生成の前に、OSとPythonコマンドを自己判定する**（導入者に聞く必要はない。Claude自身がこの環境で以下を実行して確認する）：
+```bash
+python3 --version || python --version
+```
+`python3` が動けば `{{PYTHON_CMD}}` は `python3`、動かず `python` だけ動く場合（主にWindows）は `python` を使う。判定結果は `hub.config.json` に記録し、以降のフック生成で一貫して使う。
+
 インタビュー結果から以下を生成する。**生成前に部門構成の最終案を提示して一度だけ確認を取る**（「この構成で作ります。よいですか？」）。
 
 1. **`shared/profile/ユーザープロファイル.md`** — `framework/templates/profile.template.md` を元に、聞いた内容で作成。
@@ -59,7 +65,7 @@
    - 分割エージェント・部門長は最初は作らない（運用して必要になったら `framework/05` のパターンで増設）。
 5. **`shared/` のデータ置き場** — 部門ごとにフォルダを作る。既存の記録ファイル（Excel等）があれば置き場所を案内し、なければ空のファイル（見出し行だけのCSV等）を作って記録の型を提案する。
 6. **`hub.config.json`** — `hub.config.example.json` を元に、実際のパス・連携のon/offを記入。**`setup_completed` はPhase 4の検証が終わるまで空のままにする。**
-7. **フック設定** — `.claude/settings.template.json` の `{{HUB_PATH}}` をこのリポジトリの絶対パスに置換して `.claude/settings.json` を生成（ダッシュボード有効時。無効なら sync フック部分だけ）。
+7. **フック設定** — `.claude/settings.template.json` の `{{HUB_PATH}}`(このリポジトリの絶対パス)と `{{PYTHON_CMD}}`(`python3` が使えるか確認し、なければ `python`。Windowsは通常 `python`)を置換して `.claude/settings.json` を生成(ダッシュボード有効時。無効なら sync フック部分だけ)。
 
 ## Phase 3：外部連携（希望されたものだけ）
 
@@ -69,8 +75,8 @@
 - Googleカレンダー → `integrations/google-calendar.md`
 - Notion → `integrations/notion.md`
 - Claude in Chrome → `integrations/claude-in-chrome.md`
-- ダッシュボード → `dashboard/README.md`（`bash dashboard/install_dashboard.sh`）
-- Antigravity互換 → `integrations/antigravity.md`（`.agents/hooks.json` 生成＋`bash scripts/sync_agents_md.sh`）
+- ダッシュボード → `dashboard/README.md`（`python3 dashboard/install_dashboard.py`）
+- Antigravity互換 → `integrations/antigravity.md`（`.agents/hooks.json` 生成＋`python3 scripts/sync_agents_md.py`）
 
 連携は**後回しにしてもよい**。「あとで `integrations/◯◯.md` の設定をやりたい」と言えばいつでも設定できる、と伝える。
 

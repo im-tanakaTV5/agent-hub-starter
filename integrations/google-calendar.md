@@ -8,14 +8,15 @@
 ## 前提
 
 - ターミナル操作はClaudeが代行する。導入者がやるのは**ブラウザでのGoogle認証**と、Google Cloudでの初期設定（初回のみ・10〜15分）。
-- Homebrew（Macのアプリ管理ツール）が必要。なければClaudeがインストールを案内する。
+- `gcalcli` は Python 製のツールで **Mac / Windows / Linux 共通の手順**でインストールできる（`pip` を使う。OS依存のパッケージマネージャーは不要）。
 
 ## 手順
 
-1. **インストール**（Claudeが実行）：
+1. **インストール**（Claudeが実行。どのOSでも同じコマンド）：
    ```bash
-   brew install gcalcli
+   pip install gcalcli
    ```
+   ※ `pip` が見つからない場合は `pip3` を試す。Windowsで両方失敗する場合は、先にPython公式サイトからPythonをインストールする（インストール時に「Add python.exe to PATH」にチェック）。
 2. **Google Cloud で OAuth クライアントを作る**（導入者がブラウザで実施。Claudeが画面ごとに案内する）：
    1. https://console.cloud.google.com/ にGoogleアカウントでログイン
    2. 新しいプロジェクトを作成（名前は `gcalcli` など何でもよい）
@@ -43,4 +44,5 @@
 ## つまずきやすい点
 
 - OAuth同意画面で「テストユーザー」に自分を追加し忘れると認証がブロックされる。
-- 認証トークンは `~/.config/gcalcli/` 等に保存される。マシンを変えたら再認証が必要。
+- 認証トークンは（Macなら `~/.config/gcalcli/`、Windowsなら `%APPDATA%\gcalcli\` 相当）に保存される。マシンを変えたら再認証が必要。
+- **Windows**：`gcalcli` コマンドが「認識されません」と出る場合、pipでインストールした実行ファイルの場所がPATHに通っていない可能性がある。その場合はPythonの再インストール時に「Add to PATH」を有効にするか、`python -m gcalcli` の形で呼び出す。

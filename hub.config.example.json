@@ -4,10 +4,14 @@
     "name": "（あなたの名前）",
     "call_name": "（Claudeからの呼ばれ方。例: たろうさん）"
   },
+  "environment": {
+    "os": "（macOS / Windows / Linux。セットアップ時にClaudeが自動判定）",
+    "python_cmd": "（python3 または python。セットアップ時にClaudeが自動判定してフック生成に使う）"
+  },
   "paths": {
     "hub": "/Users/yourname/agent-hub",
     "obsidian_vault": "",
-    "_obsidian_hint": "Obsidian連携を使う場合のみ。例: /Users/yourname/Library/Mobile Documents/iCloud~md~obsidian/Documents/（Vault名）"
+    "_obsidian_hint": "Obsidian連携を使う場合のみ。Mac例: /Users/yourname/Library/Mobile Documents/iCloud~md~obsidian/Documents/（Vault名）／ Windows例: C:\\Users\\yourname\\iCloudDrive\\iCloud~md~obsidian\\Documents\\（Vault名）"
   },
   "integrations": {
     "obsidian": false,
