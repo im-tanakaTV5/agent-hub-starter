@@ -9,7 +9,7 @@
 ## 必要なもの
 
 - **Mac または Windows**（このキット自体はどちらでも同じように動くよう作られています。自動起動の仕組みだけOSに応じて自動で切り替わります）
-- [Claude Code](https://claude.com/claude-code)（AnthropicのAIエージェント。有料プラン推奨——サブエージェントを多用します）。Windowsでの動作要件（ネイティブ対応かWSL経由か）は公式サイトの最新情報を確認してください。
+- [Claude Code](https://claude.com/claude-code)（AnthropicのAIエージェント。有料プラン推奨——サブエージェントを多用します）。Windowsでは PowerShell またはコマンドプロンプトからそのまま使えます（追加の仮想環境は不要）。
 - **Python 3**（ダッシュボードや自動同期の実行に使う）。Windowsで未インストールの場合は python.org からインストールし、インストーラーで「Add python.exe to PATH」に必ずチェックを入れてください。
 
 ## はじめかた（3ステップ）

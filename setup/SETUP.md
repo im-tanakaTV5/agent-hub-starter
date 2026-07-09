@@ -46,11 +46,11 @@
 
 ## Phase 2：生成（Claudeが自動で行う）
 
-**生成の前に、OSとPythonコマンドを自己判定する**（導入者に聞く必要はない。Claude自身がこの環境で以下を実行して確認する）：
-```bash
-python3 --version || python --version
-```
-`python3` が動けば `{{PYTHON_CMD}}` は `python3`、動かず `python` だけ動く場合（主にWindows）は `python` を使う。判定結果は `hub.config.json` に記録し、以降のフック生成で一貫して使う。
+**生成の前に、OSとPythonコマンドを自己判定する**（導入者に聞く必要はない。Claude自身がこの環境で確認する）。
+
+- **OS判定**：`platform.system()` 相当の情報（環境情報として渡されている場合はそれを使う。なければ `python3 -c "import platform;print(platform.system())"` を実行し、失敗したら `python -c "import platform;print(platform.system())"` を実行する）で `Darwin`（Mac）／`Windows`／`Linux` を判定する。
+- **Pythonコマンド判定**：`python3 --version` を実行し、成功すれば `{{PYTHON_CMD}}` は `python3`。失敗したら `python --version` を実行し、成功すれば `python` を使う（**Windowsのネイティブ環境では `python3` コマンドが存在せず `python` のみのことが多い**。`||` 等のシェル連結記号には頼らず、2つのコマンドを別々に試すこと——PowerShellのバージョンによって対応する演算子が異なるため）。
+- 判定結果は `hub.config.json` の `environment.os` / `environment.python_cmd` に記録し、以降のフック生成で一貫して使う。
 
 インタビュー結果から以下を生成する。**生成前に部門構成の最終案を提示して一度だけ確認を取る**（「この構成で作ります。よいですか？」）。
 
