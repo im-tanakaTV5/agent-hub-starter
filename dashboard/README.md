@@ -28,6 +28,14 @@ Claude Code / Antigravity のフック（ツール実行のたびに発火）
 
 手動で一時的に起動したいだけなら：`python3 dashboard/server.py`（ポート変更は `python3 dashboard/server.py 9000`）。Windowsでは `python3` の代わりに `python` を使う場合がある。
 
+## Galaxy ビュー（http://localhost:8765/galaxy）
+
+ダッシュボード右上の「🌌 Galaxy」から開ける、Obsidianのグラフビュー風の3D可視化。司令塔・エージェント・各CLAUDE.mdの指示セクション・`shared/`や`framework/`配下の全ファイル・Claude Codeの記憶（`[[wikilink]]`込み）を、脳の形に力場で閉じ込めた発光体の集合として描画する。
+
+- **セットアップ前でも動く**：`framework/`・`setup/`・`integrations/`・`examples/`はリポジトリに最初から存在するため、部門を作る前でもフレームワークの骨格が星図として見える。セットアップ後は `agents/`・`shared/`・記憶が加わってどんどん密度が増す。
+- 操作：ドラッグ＝回転／スクロール＝ズーム／ホバー＝接続表示／ダブルクリック＝リセット。左下の「FORCES」で反発力・リンク距離・脳の形のON/OFFを調整できる。
+- 記憶ノードは `~/.claude/projects/` 配下から、このリポジトリのパスに対応するフォルダを自動推定して読む（ハードコードなし）。見つからない場合は記憶ノード無しで残りが描画される（エラーにはならない）。
+
 ## アンインストール
 
 - **macOS**：

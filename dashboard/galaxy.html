@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Hub — Galaxy</title>
+<style>
+  :root{
+    --bg:#040508; --panel:rgba(12,14,19,.86); --border:#1f242e;
+    --text:#dfe3ec; --dim:#79808f; --mono:'SF Mono',Menlo,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);
+    font-family:'Helvetica Neue','Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;color:var(--text)}
+  canvas{display:block;position:absolute;inset:0}
+
+  .hud{position:absolute;z-index:10;user-select:none}
+
+  .panel-tl{top:14px;left:14px;display:flex;flex-direction:column;gap:10px;width:232px}
+  .brand{display:flex;align-items:center;gap:8px}
+  .brand a{color:var(--dim);text-decoration:none;font-size:.72rem;border:1px solid var(--border);
+    border-radius:6px;padding:3px 9px;background:var(--panel)}
+  .brand a:hover{color:#fff;border-color:#39414f}
+  .brand h1{font-size:.86rem;font-weight:700;letter-spacing:.08em;color:#eef1f7;
+    text-shadow:0 0 16px rgba(220,230,255,.35)}
+  .searchbox{background:var(--panel);border:1px solid var(--border);border-radius:8px;
+    padding:8px 11px;color:var(--text);font-size:.82rem;outline:none;width:100%;backdrop-filter:blur(6px)}
+  .searchbox:focus{border-color:#465064}
+  .legend{background:var(--panel);border:1px solid var(--border);border-radius:8px;
+    padding:9px 11px;display:flex;flex-direction:column;gap:6px;backdrop-filter:blur(6px)}
+  .lg-item{display:flex;align-items:center;gap:8px;font-size:.74rem;color:var(--dim);
+    cursor:pointer;transition:opacity .15s}
+  .lg-item.off{opacity:.3;text-decoration:line-through}
+  .lg-dot{border-radius:50%;flex-shrink:0;background:#e8ecf5;box-shadow:0 0 7px rgba(230,236,248,.8)}
+  .lg-count{margin-left:auto;font-family:var(--mono);font-size:.68rem;color:#4d5361}
+
+  .panel-tr{top:14px;right:14px;text-align:right;background:var(--panel);
+    border:1px solid var(--border);border-radius:8px;padding:9px 13px;
+    font-family:var(--mono);font-size:.72rem;color:var(--dim);line-height:1.9;backdrop-filter:blur(6px)}
+  .panel-tr b{color:#eef1f7;font-weight:600;margin-left:14px}
+
+  .panel-br{bottom:12px;right:14px;font-size:.68rem;color:#3d434f;font-family:var(--mono)}
+
+  .panel-bl{bottom:12px;left:14px;background:var(--panel);border:1px solid var(--border);
+    border-radius:8px;padding:10px 13px;width:210px;backdrop-filter:blur(6px)}
+  .panel-bl.collapsed .sliders{display:none}
+  .forces-head{font-size:.7rem;font-weight:700;letter-spacing:.1em;color:var(--dim);
+    cursor:pointer;display:flex;justify-content:space-between}
+  .sliders{margin-top:8px;display:flex;flex-direction:column;gap:7px}
+  .slider-row{display:flex;flex-direction:column;gap:2px}
+  .slider-row label{font-size:.66rem;color:#5d6373}
+  .slider-row input{width:100%;accent-color:#aebfdd;height:14px}
+  .rot-row{display:flex;align-items:center;gap:8px;font-size:.7rem;color:#5d6373;margin-top:2px}
+
+  #tooltip{position:absolute;z-index:20;pointer-events:none;display:none;
+    background:rgba(15,17,23,.95);border:1px solid #2c3442;border-radius:8px;
+    padding:9px 12px;max-width:280px;box-shadow:0 6px 24px rgba(0,0,0,.55)}
+  #tooltip .tt-name{font-size:.8rem;font-weight:700;color:#fff;margin-bottom:4px;word-break:break-all}
+  #tooltip .tt-meta{font-family:var(--mono);font-size:.68rem;color:var(--dim);line-height:1.7}
+  #tooltip .tt-meta b{color:#cdd6e8}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+
+<div class="hud panel-tl">
+  <div class="brand"><a href="/">← Hub</a><h1>関係銀河 — Graph view</h1></div>
+  <input class="searchbox" id="search" type="text" placeholder="ノードを検索…" autocomplete="off">
+  <div class="legend" id="legend"></div>
+</div>
+
+<div class="hud panel-tr" id="stats"></div>
+
+<div class="hud panel-bl collapsed" id="forcesPanel">
+  <div class="forces-head" onclick="document.getElementById('forcesPanel').classList.toggle('collapsed')">
+    <span>FORCES</span><span>⚙</span>
+  </div>
+  <div class="sliders">
+    <div class="slider-row"><label>反発力</label>
+      <input type="range" id="sRepel" min="500" max="9000" value="3000"></div>
+    <div class="slider-row"><label>リンク距離</label>
+      <input type="range" id="sDist" min="40" max="250" value="100"></div>
+    <div class="slider-row"><label>中心引力</label>
+      <input type="range" id="sGrav" min="0" max="40" value="3"></div>
+    <div class="rot-row">
+      <input type="checkbox" id="cRotate" checked><label for="cRotate">自動回転</label>
+    </div>
+    <div class="rot-row">
+      <input type="checkbox" id="cBrain" checked><label for="cBrain">🧠 脳の形</label>
+    </div>
+  </div>
+</div>
+
+<div class="hud panel-br">drag = 回転 ／ scroll = ズーム ／ hover = 接続表示 ／ dblclick = リセット</div>
+<div id="tooltip"></div>
+
+<script>
+'use strict';
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const tooltip = document.getElementById('tooltip');
+const DPR = window.devicePixelRatio || 1;
+let W = 0, H = 0;
+
+// ── モノクロ発光トーン（色相を使わず、明度とサイズだけで階層を出す）──────
+const TYPE_INFO = {
+  commander:{jp:'司令塔',      tone:'#ffffff', bright:1.0,  dot:11},
+  agent:    {jp:'エージェント', tone:'#eef2fa', bright:.95, dot:9},
+  rule:     {jp:'司令塔ルール', tone:'#d9dfec', bright:.7,  dot:7},
+  section:  {jp:'個別指示',    tone:'#aab3c6', bright:.5,  dot:5},
+  folder:   {jp:'フォルダ',    tone:'#dfe6f2', bright:.78, dot:7},
+  file:     {jp:'ファイル',    tone:'#b9c4d8', bright:.52, dot:5},
+  memory:   {jp:'記憶',       tone:'#d6dcea', bright:.65, dot:6},
+};
+const HL_TONE = '#ffd9a3';   // ホバー時だけ灯る暖色（星の瞬き）
+
+let nodes = [], links = [], adj = new Map(), byId = new Map();
+let hiddenTypes = new Set();
+let hoverNode = null, searchQuery = '';
+let alpha = 1;
+
+// ── 3Dカメラ（オービット）────────────────────────────────
+const cam = { yaw: .5, pitch: .72, dist: 2200, fov: 900 };
+let autoFitDist = true, autoRotate = true, lastInteract = 0;
+let brainMode = true;   // 全体フォルムを脳型に制約
+
+// ── 脳型フォルム（力場で容器を脳の側面シルエットにする）──────
+// 複数の球（大脳・前頭葉・後頭葉・側頭葉・小脳・脳幹）を滑らかに繋ぐ。
+// 軸: X=前後（前頭=−X / 後頭=+X） Y=上下 Z=左右幅（半球）
+const BRAIN = {
+  scale: 520, zsquash: 0.70,      // zsquash<1 で左右を薄く（脳は横幅が狭い）
+  margin: 24, pull: 0.10, k: 62,  // 閉じ込め強度・球の融合なめらかさ
+  fw: 44, fiss: 22,               // 背側正中溝（縦裂）
+  // [cx, cy, cz, rx, ry, rz]（scale単位）
+  balls: [
+    [ 0.02,  0.16, 0, 0.72, 0.56, 0.52],  // 大脳主体
+    [-0.58,  0.04, 0, 0.34, 0.37, 0.40],  // 前頭葉（前=左）
+    [ 0.60,  0.13, 0, 0.36, 0.40, 0.44],  // 後頭葉（後=右）
+    [-0.44, -0.34, 0, 0.30, 0.28, 0.34],  // 側頭葉（前下・垂れる）
+    [ 0.46, -0.30, 0, 0.32, 0.28, 0.30],  // 小脳（後下のこぶ）
+    [ 0.26, -0.62, 0, 0.15, 0.24, 0.16],  // 脳幹（下へ伸びる）
+  ],
+};
+function sdEllipsoid(x, y, z, rx, ry, rz){
+  const k0 = Math.sqrt((x/rx)**2 + (y/ry)**2 + (z/rz)**2);
+  const k1 = Math.sqrt((x/(rx*rx))**2 + (y/(ry*ry))**2 + (z/(rz*rz))**2);
+  // 中心付近では k1→0 で 0/0(NaN) になりうるため、下限を設けて特異点を回避する
+  return k0 * (k0 - 1) / Math.max(k1, 1e-3);   // 負=内側 / 正=外側
+}
+function smin(a, b, k){
+  const h = Math.max(k - Math.abs(a - b), 0) / k;
+  return Math.min(a, b) - h * h * k * 0.25;
+}
+function brainSDF(x, y, z){
+  const S = BRAIN.scale;
+  z = z / BRAIN.zsquash;
+  let d = 1e9;
+  for (const b of BRAIN.balls){
+    const e = sdEllipsoid(x - b[0]*S, y - b[1]*S, z - b[2]*S, b[3]*S, b[4]*S, b[5]*S);
+    d = smin(d, e, BRAIN.k);
+  }
+  return d;
+}
+function applyBrain(n){
+  const d = brainSDF(n.x, n.y, n.z);
+  if (d > -BRAIN.margin){          // 表面付近〜外側なら内へ押し戻す
+    const e = 6;
+    const gx = brainSDF(n.x+e, n.y, n.z) - brainSDF(n.x-e, n.y, n.z);
+    const gy = brainSDF(n.x, n.y+e, n.z) - brainSDF(n.x, n.y-e, n.z);
+    const gz = brainSDF(n.x, n.y, n.z+e) - brainSDF(n.x, n.y, n.z-e);
+    const gl = Math.sqrt(gx*gx + gy*gy + gz*gz) || 1;
+    // 特異点近傍で勾配が暴れても一撃で吹き飛ばないよう上限を設ける
+    const push = Math.min(Math.abs(d + BRAIN.margin), 400) * Math.sign(d + BRAIN.margin) * BRAIN.pull * alpha;
+    n.vx -= gx/gl*push; n.vy -= gy/gl*push; n.vz -= gz/gl*push;
+  }
+  // 背側正中溝（z=0で左右半球に割る・上=強/下=弱）
+  if (n.id !== 'commander'){
+    const topw = n.y > 0 ? 1 : 0.35;
+    const fz = Math.exp(-(n.z*n.z) / (2*BRAIN.fw*BRAIN.fw)) * topw * BRAIN.fiss * alpha;
+    n.vz += (n.z >= 0 ? 1 : -1) * fz;
+  }
+}
+
+// ── リンク種別ごとの自然長：クラスター間を大きく離す ───────
+function linkParams(a, b){
+  const t = [a.type, b.type].sort().join('-');
+  switch (t){
+    case 'agent-commander':   return { len: 700, k: .3 };
+    case 'commander-rule':    return { len: 300, k: .3 };
+    case 'commander-memory':  return { len: 520, k: .25 };
+    case 'commander-folder':  return { len: 680, k: .28 }; // トップフォルダも独立した島に
+    case 'agent-section':     return { len: 62,  k: 1.2 };
+    case 'agent-file':        return { len: 115, k: .7 };
+    case 'agent-folder':      return { len: 170, k: .4 };
+    case 'agent-rule':        return { len: 760, k: .015 }; // 共通プロトコル：線のみ、引かない
+    case 'folder-folder':     return { len: 100, k: .85 };
+    case 'file-folder':       return { len: 52,  k: 1.1 };
+    case 'folder-rule':       return { len: 200, k: .3 };
+    case 'memory-memory':     return { len: 130, k: .6 };
+    default:                  return { len: 140, k: .6 };
+  }
+}
+
+// ── 星空背景 ──────────────────────────────────────────────
+let stars = [];
+function makeStars(){
+  stars = [];
+  const n = Math.floor(W * H / 3800);
+  for (let i = 0; i < n; i++) stars.push({
+    x: Math.random() * W, y: Math.random() * H,
+    r: Math.random() * 1.1 + .2, p: Math.random() * Math.PI * 2,
+  });
+}
+
+// ── グロー用スプライト ────────────────────────────────────
+const sprites = new Map();
+function sprite(color){
+  if (sprites.has(color)) return sprites.get(color);
+  const s = document.createElement('canvas');
+  s.width = s.height = 64;
+  const c = s.getContext('2d');
+  const g = c.createRadialGradient(32, 32, 0, 32, 32, 32);
+  g.addColorStop(0,   color);
+  g.addColorStop(.22, color + '99');
+  g.addColorStop(1,   color + '00');
+  c.fillStyle = g;
+  c.fillRect(0, 0, 64, 64);
+  sprites.set(color, s);
+  return s;
+}
+
+// ── データ読込・3D初期配置（司令塔からのBFSを球面方向へ）───
+async function load(){
+  const data = await (await fetch('/api/galaxy')).json();
+  nodes = data.nodes; links = data.links;
+  byId = new Map(nodes.map(n => [n.id, n]));
+  adj = new Map(nodes.map(n => [n.id, []]));
+  for (const l of links){
+    adj.get(l.s).push(l.t);
+    adj.get(l.t).push(l.s);
+    const p = linkParams(byId.get(l.s), byId.get(l.t));
+    l.len = p.len; l.k = p.k;
+  }
+  for (const n of nodes){
+    const info = TYPE_INFO[n.type];
+    n.r = n.type === 'commander' ? 15 :
+          info.dot * .35 + Math.sqrt(n.deg || 1) * (n.type === 'agent' ? 2.2 : .9);
+    n.x = n.y = n.z = null;
+    n.vx = n.vy = n.vz = 0;
+  }
+  const root = byId.get('commander');
+  root.x = root.y = root.z = 0;
+  const queue = ['commander'];
+  while (queue.length){
+    const p = byId.get(queue.shift());
+    const kids = adj.get(p.id).filter(id => byId.get(id).x === null);
+    for (const id of kids){
+      const n = byId.get(id);
+      // 親方向ベクトル＋ランダム球面方向で外へ散らす
+      let dx = p.x, dy = p.y, dz = p.z;
+      const dl = Math.sqrt(dx*dx + dy*dy + dz*dz);
+      if (dl < 1){ // 司令塔直下：一様球面分布
+        const th = Math.random() * 6.283, ph = Math.acos(2 * Math.random() - 1);
+        dx = Math.sin(ph) * Math.cos(th); dy = Math.sin(ph) * Math.sin(th); dz = Math.cos(ph);
+      } else {
+        dx /= dl; dy /= dl; dz /= dl;
+        dx += (Math.random()-.5) * .9; dy += (Math.random()-.5) * .9; dz += (Math.random()-.5) * .9;
+        const l2 = Math.sqrt(dx*dx + dy*dy + dz*dz) || 1;
+        dx /= l2; dy /= l2; dz /= l2;
+      }
+      const dist = 160 + Math.random() * 80;
+      n.x = p.x + dx * dist; n.y = p.y + dy * dist; n.z = p.z + dz * dist;
+      queue.push(id);
+    }
+  }
+  for (const n of nodes) if (n.x === null){
+    n.x = (Math.random()-.5)*900; n.y = (Math.random()-.5)*900; n.z = (Math.random()-.5)*900;
+  }
+  buildLegend();
+  updateStats();
+  alpha = 1;
+}
+
+// ── 3D物理 ────────────────────────────────────────────────
+const F = { repel: 3000, distScale: 1, grav: 0.003 };
+function tick(){
+  if (alpha < .008) return;
+  const act = nodes.filter(n => !hiddenTypes.has(n.type));
+  for (let i = 0; i < act.length; i++){
+    const a = act[i];
+    for (let j = i + 1; j < act.length; j++){
+      const b = act[j];
+      let dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
+      let d2 = dx*dx + dy*dy + dz*dz;
+      if (d2 < 1){ dx = Math.random()-.5; dy = Math.random()-.5; dz = Math.random()-.5; d2 = 1; }
+      if (d2 > 1440000) continue;   // 1200px カットオフ
+      // クラスター核（エージェント）同士は強く反発させ、群れごと引き離す
+      const boost = (a.type === 'agent' && b.type === 'agent') ? 24 : 1;
+      const f = F.repel * boost / d2 * alpha;
+      const d = Math.sqrt(d2);
+      dx /= d; dy /= d; dz /= d;
+      a.vx -= dx*f; a.vy -= dy*f; a.vz -= dz*f;
+      b.vx += dx*f; b.vy += dy*f; b.vz += dz*f;
+    }
+  }
+  for (const l of links){
+    const a = byId.get(l.s), b = byId.get(l.t);
+    if (hiddenTypes.has(a.type) || hiddenTypes.has(b.type)) continue;
+    const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
+    const d = Math.sqrt(dx*dx + dy*dy + dz*dz) || 1;
+    const f = (d - l.len * F.distScale) * 0.04 * l.k * alpha;
+    const fx = dx/d*f, fy = dy/d*f, fz = dz/d*f;
+    a.vx += fx; a.vy += fy; a.vz += fz;
+    b.vx -= fx; b.vy -= fy; b.vz -= fz;
+  }
+  for (const n of act){
+    if (brainMode && n.id === 'commander'){   // 脳幹の中心に固定し背側の溝を空ける
+      const S = BRAIN.scale, stem = BRAIN.balls[5];   // [cx,cy,cz,...] = 脳幹
+      n.x = stem[0]*S; n.y = stem[1]*S; n.z = stem[2]*S;
+      n.vx = n.vy = n.vz = 0; continue;
+    }
+    n.vx -= n.x * F.grav * alpha;
+    n.vy -= n.y * F.grav * alpha;
+    n.vz -= n.z * F.grav * alpha;
+    if (brainMode) applyBrain(n);
+    n.vx *= .82; n.vy *= .82; n.vz *= .82;
+    n.x += n.vx; n.y += n.vy; n.z += n.vz;
+    // 安全網：万一どこかでNaN/Infinityが発生しても即座に自己修復する
+    if (!isFinite(n.x) || !isFinite(n.y) || !isFinite(n.z)){
+      n.x = (Math.random()-.5) * 200; n.y = (Math.random()-.5) * 200; n.z = (Math.random()-.5) * 200;
+      n.vx = n.vy = n.vz = 0;
+    }
+  }
+  alpha = Math.max(alpha * .995, .012);
+}
+
+// ── 投影 ──────────────────────────────────────────────────
+function project(n){
+  const cy = Math.cos(cam.yaw),  sy = Math.sin(cam.yaw);
+  const cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
+  // yaw（Y軸回転）→ pitch（X軸回転）
+  const x1 = n.x * cy + n.z * sy;
+  const z1 = -n.x * sy + n.z * cy;
+  const y2 = n.y * cp - z1 * sp;
+  const z2 = n.y * sp + z1 * cp;
+  const zc = z2 + cam.dist;
+  if (zc < 60) return null;   // カメラ背後
+  const s = cam.fov / zc;
+  return { sx: W/2 + x1 * s, sy: H/2 - y2 * s, s, zc };   // 画面Yは下向きが正のため反転（+Y=上=大脳 を正しく上に出す）
+}
+
+function highlightSet(){
+  if (hoverNode) return new Set([hoverNode.id, ...adj.get(hoverNode.id)]);
+  if (searchQuery){
+    const q = searchQuery.toLowerCase();
+    return new Set(nodes.filter(n => n.label.toLowerCase().includes(q)).map(n => n.id));
+  }
+  return null;
+}
+
+// ── 描画 ──────────────────────────────────────────────────
+function draw(t){
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.fillStyle = '#040508';
+  ctx.fillRect(0, 0, W, H);
+  for (const s of stars){
+    ctx.globalAlpha = .18 + .16 * Math.sin(t / 1700 + s.p);
+    ctx.fillStyle = '#9aa6c4';
+    ctx.fillRect(s.x, s.y, s.r, s.r);
+  }
+  ctx.globalAlpha = 1;
+
+  const hl = highlightSet();
+  const proj = new Map();
+  for (const n of nodes){
+    if (hiddenTypes.has(n.type)) continue;
+    const p = project(n);
+    if (p) proj.set(n.id, p);
+  }
+
+  // エッジ（奥行きで減衰）
+  for (const l of links){
+    const pa = proj.get(l.s), pb = proj.get(l.t);
+    if (!pa || !pb) continue;
+    const a = byId.get(l.s), b = byId.get(l.t);
+    const depthFade = Math.min(1, 1400 / ((pa.zc + pb.zc) / 2));
+    let alphaE = .05 * depthFade, tone = '#8e9ab5', width = .55;
+    if (hl){
+      const on = hoverNode
+        ? (l.s === hoverNode.id || l.t === hoverNode.id)
+        : (hl.has(l.s) && hl.has(l.t));
+      if (on){ alphaE = .5; tone = HL_TONE; width = 1.1; }
+      else alphaE = .015;
+    }
+    ctx.globalAlpha = alphaE;
+    ctx.strokeStyle = tone;
+    ctx.lineWidth = width;
+    ctx.beginPath();
+    ctx.moveTo(pa.sx, pa.sy);
+    ctx.lineTo(pb.sx, pb.sy);
+    ctx.stroke();
+  }
+
+  // ノード：奥→手前の順に描画（painter's algorithm）
+  const order = [...proj.entries()].sort((a, b) => b[1].zc - a[1].zc);
+  for (const [id, p] of order){
+    const n = byId.get(id);
+    const info = TYPE_INFO[n.type];
+    const dimmed = hl && !hl.has(id);
+    const focus = hl && hl.has(id) && hoverNode;
+    const depthFade = Math.min(1, 1500 / p.zc);
+    const r = Math.max(.6, n.r * p.s);
+    const tone = focus ? HL_TONE : info.tone;
+    ctx.globalAlpha = (dimmed ? .05 : info.bright * depthFade);
+    const glowR = r * (n.type === 'commander' ? 7 : 4.5);
+    ctx.drawImage(sprite(tone), p.sx - glowR, p.sy - glowR, glowR * 2, glowR * 2);
+    ctx.globalAlpha = (dimmed ? .07 : Math.min(1, info.bright * depthFade + .15));
+    ctx.fillStyle = tone;
+    ctx.beginPath();
+    ctx.arc(p.sx, p.sy, r, 0, 6.283);
+    ctx.fill();
+  }
+
+  // ラベル（手前・大きい星ほど浮かび上がる）
+  ctx.textAlign = 'center';
+  for (const [id, p] of order){
+    const n = byId.get(id);
+    const focused = hl && hl.has(id);
+    const r = n.r * p.s;
+    let a = Math.min(1, Math.max(0, (r - 4.2) / 6));
+    if (focused) a = 1;
+    if (hl && !hl.has(id)) a = 0;
+    if (a <= .02) continue;
+    const fs = Math.min(13, Math.max(9.5, r * 1.1));
+    ctx.globalAlpha = a * .9;
+    ctx.font = `${n.type==='agent'||n.type==='commander' ? '700 ' : ''}${fs}px 'Hiragino Kaku Gothic ProN',sans-serif`;
+    ctx.fillStyle = '#dfe5f2';
+    ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
+    const label = n.label.length > 22 ? n.label.slice(0, 21) + '…' : n.label;
+    ctx.fillText(label, p.sx, p.sy + r + fs + 2);
+    ctx.shadowBlur = 0;
+  }
+  ctx.globalAlpha = 1;
+  return proj;
+}
+
+// ── カメラ自動フィット＆自動回転 ──────────────────────────
+function fitDist(){
+  let maxR = 100;
+  for (const n of nodes){
+    if (hiddenTypes.has(n.type)) continue;
+    maxR = Math.max(maxR, Math.sqrt(n.x*n.x + n.y*n.y + n.z*n.z));
+  }
+  cam.dist = maxR * cam.fov / (Math.min(W, H) * .46);
+}
+
+let lastProj = new Map(), frameCount = 0;
+function loop(t){
+  tick();
+  if (autoRotate && t - lastInteract > 3000) cam.yaw += .00022;
+  if (autoFitDist && ++frameCount % 15 === 0) fitDist();
+  lastProj = draw(t);
+  requestAnimationFrame(loop);
+}
+
+// ── 凡例＆統計 ────────────────────────────────────────────
+function buildLegend(){
+  const el = document.getElementById('legend');
+  el.innerHTML = '';
+  for (const [type, info] of Object.entries(TYPE_INFO)){
+    const count = nodes.filter(n => n.type === type).length;
+    if (!count) continue;
+    const div = document.createElement('div');
+    div.className = 'lg-item';
+    const d = info.dot;
+    div.innerHTML = `<span class="lg-dot" style="width:${d}px;height:${d}px;opacity:${info.bright}"></span>
+      ${info.jp}<span class="lg-count">${count}</span>`;
+    div.onclick = () => {
+      hiddenTypes.has(type) ? hiddenTypes.delete(type) : hiddenTypes.add(type);
+      div.classList.toggle('off');
+      updateStats(); alpha = Math.max(alpha, .4);
+    };
+    el.appendChild(div);
+  }
+}
+function updateStats(){
+  const vis = nodes.filter(n => !hiddenTypes.has(n.type));
+  const visIds = new Set(vis.map(n => n.id));
+  const visLinks = links.filter(l => visIds.has(l.s) && visIds.has(l.t));
+  document.getElementById('stats').innerHTML =
+    `nodes<b>${vis.length.toLocaleString()}</b><br>links<b>${visLinks.length.toLocaleString()}</b>`;
+}
+
+// ── 入力操作（ドラッグ＝オービット回転）───────────────────
+function nodeAtScreen(px, py){
+  let best = null, bestD = 1e9;
+  for (const [id, p] of lastProj){
+    const n = byId.get(id);
+    const dx = p.sx - px, dy = p.sy - py;
+    const d = Math.sqrt(dx*dx + dy*dy);
+    if (d < Math.max(n.r * p.s + 4, 9) && d < bestD){ best = n; bestD = d; }
+  }
+  return best;
+}
+
+let orbiting = false, lastX = 0, lastY = 0;
+cv.addEventListener('mousedown', e => {
+  orbiting = true; lastInteract = performance.now();
+  lastX = e.clientX; lastY = e.clientY;
+});
+window.addEventListener('mousemove', e => {
+  if (orbiting){
+    cam.yaw   += (e.clientX - lastX) * .005;
+    cam.pitch += (e.clientY - lastY) * .005;
+    cam.pitch = Math.max(-1.5, Math.min(1.5, cam.pitch));
+    lastInteract = performance.now();
+  } else {
+    const n = nodeAtScreen(e.clientX, e.clientY);
+    if (n !== hoverNode) hoverNode = n;
+    if (n){
+      tooltip.style.display = 'block';
+      tooltip.style.left = (e.clientX + 16) + 'px';
+      tooltip.style.top  = (e.clientY + 12) + 'px';
+      tooltip.innerHTML = `<div class="tt-name">${n.label}</div>
+        <div class="tt-meta">type <b>${TYPE_INFO[n.type].jp}</b><br>links <b>${n.deg}</b>${n.group ? `<br>group <b>${n.group}</b>` : ''}</div>`;
+      cv.style.cursor = 'pointer';
+    } else {
+      tooltip.style.display = 'none';
+      cv.style.cursor = 'default';
+    }
+  }
+  lastX = e.clientX; lastY = e.clientY;
+});
+window.addEventListener('mouseup', () => { orbiting = false; });
+cv.addEventListener('dblclick', () => {
+  cam.yaw = .5; cam.pitch = .72; autoFitDist = true; fitDist();
+});
+cv.addEventListener('wheel', e => {
+  e.preventDefault();
+  autoFitDist = false; lastInteract = performance.now();
+  cam.dist = Math.max(300, Math.min(9000, cam.dist * Math.exp(e.deltaY * .0012)));
+}, { passive: false });
+
+document.getElementById('search').addEventListener('input', e => {
+  searchQuery = e.target.value.trim();
+});
+document.getElementById('sRepel').addEventListener('input', e => { F.repel = +e.target.value; alpha = 1; });
+document.getElementById('sDist').addEventListener('input',  e => { F.distScale = +e.target.value / 100; alpha = 1; });
+document.getElementById('sGrav').addEventListener('input',  e => { F.grav = +e.target.value / 1000; alpha = 1; });
+document.getElementById('cRotate').addEventListener('change', e => { autoRotate = e.target.checked; });
+document.getElementById('cBrain').addEventListener('change', e => { brainMode = e.target.checked; alpha = 1; });
+
+function resize(){
+  W = window.innerWidth; H = window.innerHeight;
+  cv.width = W * DPR; cv.height = H * DPR;
+  cv.style.width = W + 'px'; cv.style.height = H + 'px';
+  makeStars();
+}
+window.addEventListener('resize', resize);
+
+resize();
+load().then(() => requestAnimationFrame(loop));
+</script>
+</body>
+</html>

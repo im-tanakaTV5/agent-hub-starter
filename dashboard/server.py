@@ -505,6 +505,10 @@ class Handler(BaseHTTPRequestHandler):
 
         if path in ('/', '/index.html'):
             self._serve_static('index.html', 'text/html; charset=utf-8')
+        elif path == '/galaxy':
+            self._serve_static('galaxy.html', 'text/html; charset=utf-8')
+        elif path == '/api/galaxy':
+            self._send_json(get_galaxy())
         elif path == '/api/events':
             self._send_json(read_recent_events())
         elif path == '/api/events/stream':
@@ -782,6 +786,178 @@ def get_graph() -> dict:
         _graph_cache['data'] = build_graph()
         _graph_cache['dirty'] = False
     return _graph_cache['data']
+
+
+# ── Galaxy view (Obsidian graph 風・全カスタマイズ資産の星図) ─────────────────
+def _find_memory_dir() -> Path | None:
+    """このリポジトリに対応する Claude Code の記憶フォルダを探す。
+    導入者ごとにパスが異なるため、BASE_DIR から動的に推定する（ハードコード禁止）。"""
+    try:
+        if not CLAUDE_PROJECTS.exists():
+            return None
+        slug = re.sub(r'[\\/]', '-', str(BASE_DIR.resolve()))
+        candidate = CLAUDE_PROJECTS / slug / 'memory'
+        if candidate.exists():
+            return candidate
+        # フォールバック：フォルダ名の末尾一致で探す（プラットフォーム差の吸収）
+        suffix = '-' + BASE_DIR.resolve().name
+        for d in CLAUDE_PROJECTS.iterdir():
+            if d.is_dir() and d.name.endswith(suffix) and (d / 'memory').exists():
+                return d / 'memory'
+    except Exception:
+        pass
+    return None
+
+def _norm_source(p: str) -> str:
+    """データソース欄のパス表記ゆれを正規化し、同一ファイルを1ノードに束ねる。"""
+    p = p.strip().strip('`').strip()
+    if not p:
+        return ''
+    if 'shared/' in p:
+        return 'shared/' + p.split('shared/', 1)[1].rstrip('/')
+    if 'iCloud' in p or 'obsidian' in p.lower():
+        return 'obsidian/' + p.rstrip('/').split('/')[-1]
+    return p.rstrip('/').split('/')[-1]
+
+_galaxy_cache: dict = {'data': None, 'ts': 0}
+
+def build_galaxy() -> dict:
+    """司令塔・エージェント・CLAUDE.md指示セクション・共有ファイル・記憶を
+    ノード＆リンク化して返す（Obsidian Graph View 風の銀河データ）。
+    セットアップ未実施でも framework/ 等の骨格だけで星図になるよう設計。"""
+    nodes, links = [], []
+    seen: set = set()
+
+    def add_node(nid, label, ntype, color, group=''):
+        if nid in seen:
+            return
+        seen.add(nid)
+        nodes.append({'id': nid, 'label': label, 'type': ntype,
+                      'color': color, 'group': group})
+
+    def add_link(a, b, w=1.0):
+        if a in seen and b in seen and a != b:
+            links.append({'s': a, 't': b, 'w': w})
+
+    add_node('commander', '司令塔', 'commander', '#ffffff')
+
+    # 司令塔 CLAUDE.md の ## セクション（起動判定・司令塔モードの起動手順等）
+    try:
+        root = (BASE_DIR / 'CLAUDE.md').read_text(encoding='utf-8', errors='replace')
+        for sec in re.findall(r'^##\s+(.+?)\s*$', root, re.MULTILINE):
+            nid = f'root#{sec}'
+            add_node(nid, sec, 'rule', '#d9c27a')
+            add_link('commander', nid, 0.6)
+    except Exception:
+        pass
+
+    proto = BASE_DIR / 'shared' / '共通プロトコル.md'
+    if proto.exists():
+        add_node('proto', '共通プロトコル', 'rule', '#d9c27a')
+        add_link('commander', 'proto', 1.2)
+
+    # 実ファイルシステム走査：フレームワーク骨格＋導入者の生成物を星に
+    WALK_DIRS = ('shared', 'reports', 'scripts', 'dashboard',
+                 'framework', 'setup', 'integrations', 'examples', 'my-hub')
+    SKIP_NAMES = {'.DS_Store', '__pycache__', 'logs', 'node_modules',
+                  '.gitkeep', '共通プロトコル.md'}
+
+    def walk_fs(dir_path: Path, parent_id: str):
+        try:
+            children = sorted(dir_path.iterdir())
+        except Exception:
+            return
+        for child in children:
+            if child.name.startswith('.') or child.name in SKIP_NAMES:
+                continue
+            if child.suffix in ('.log', '.pyc'):
+                continue
+            rel = child.relative_to(BASE_DIR).as_posix()
+            nid = f'fs:{rel}'
+            if child.is_dir():
+                add_node(nid, child.name + '/', 'folder', '#93a0b8')
+                add_link(parent_id, nid, 1.0)
+                walk_fs(child, nid)
+            else:
+                add_node(nid, child.name, 'file', '#7d8db3')
+                add_link(parent_id, nid, 1.0)
+
+    for top in WALK_DIRS:
+        p = BASE_DIR / top
+        if p.exists():
+            nid = f'fs:{top}'
+            add_node(nid, top + '/', 'folder', '#93a0b8')
+            add_link('commander', nid, 1.0)
+            walk_fs(p, nid)
+    if proto.exists() and 'fs:shared' in seen:
+        add_link('proto', 'fs:shared', 0.4)   # プロトコルはshared/の住人
+
+    # エージェント＋各CLAUDE.mdの##セクション＋データソース（導入者のセットアップ後に充実）
+    if AGENTS_DIR.exists():
+        for d in sorted(AGENTS_DIR.iterdir()):
+            if not d.is_dir():
+                continue
+            a = _parse_agent(d)
+            if not a:
+                continue
+            add_node(d.name, a['name'], 'agent', a['color'], d.name)
+            add_link('commander', d.name, 2.0)
+            if proto.exists():
+                add_link(d.name, 'proto', 0.3)
+            try:
+                content = (d / 'CLAUDE.md').read_text(encoding='utf-8', errors='replace')
+                for sec in re.findall(r'^##\s+(.+?)\s*$', content, re.MULTILINE):
+                    nid = f'{d.name}#{sec}'
+                    add_node(nid, sec, 'section', a['color'], d.name)
+                    add_link(d.name, nid, 0.5)
+            except Exception:
+                pass
+            for src in a['sources']:
+                norm = _norm_source(src.get('path', ''))
+                if not norm:
+                    continue
+                # 実在するファイル/フォルダなら実FSノードへ接続（銀河の幹線）
+                if norm.startswith('shared/') and f'fs:{norm}' in seen:
+                    add_link(d.name, f'fs:{norm}', 1.0)
+                    continue
+                fid = f'ext:{norm}'
+                add_node(fid, norm.rstrip('/').split('/')[-1], 'file', '#7d8db3')
+                add_link(d.name, fid, 1.0)
+
+    # 記憶ファイル（[[wikilink]] も実リンク化・導入者ごとにパスを動的推定）
+    memory_dir = _find_memory_dir()
+    if memory_dir:
+        mems = [f for f in sorted(memory_dir.glob('*.md')) if f.name != 'MEMORY.md']
+        for f in mems:
+            add_node(f'mem:{f.stem}', f.stem, 'memory', '#a78bfa')
+            add_link('commander', f'mem:{f.stem}', 0.3)
+        for f in mems:
+            try:
+                text = f.read_text(encoding='utf-8', errors='replace')
+            except Exception:
+                continue
+            for target in re.findall(r'\[\[([^\]\|#]+)', text):
+                tid = f'mem:{target.strip()}'
+                if tid in seen:
+                    add_link(f'mem:{f.stem}', tid, 0.8)
+
+    deg: dict = {}
+    for l in links:
+        deg[l['s']] = deg.get(l['s'], 0) + 1
+        deg[l['t']] = deg.get(l['t'], 0) + 1
+    for n in nodes:
+        n['deg'] = deg.get(n['id'], 0)
+
+    return {'nodes': nodes, 'links': links,
+            'generated': datetime.now().isoformat()}
+
+def get_galaxy() -> dict:
+    now = time.time()
+    if not _galaxy_cache['data'] or now - _galaxy_cache['ts'] > 30:
+        _galaxy_cache['data'] = build_galaxy()
+        _galaxy_cache['ts'] = now
+    return _galaxy_cache['data']
+
 
 # ── Config file watcher ───────────────────────────────────────────────────────
 def _watched_files() -> list:
