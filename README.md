@@ -43,7 +43,7 @@
 | `framework/` | 司令塔のエンジン（統合ロジック・週次フロー・モデル振り分け・設計パターン・各種テンプレート） |
 | `setup/` | セットアップウィザードの台本 |
 | `examples/` | 部門エージェントの書き方の実例3つ |
-| `integrations/` | 外部連携ガイド（Obsidian・Googleカレンダー・Notion・Claude in Chrome・Antigravity） |
+| `integrations/` | 外部連携ガイド（Obsidian・Googleカレンダー・Notion・Claude in Chrome） |
 | `dashboard/` | エージェント活動を眺めるブラウザ画面（任意） |
 | `agents/` `shared/` `my-hub/` `reports/` | **あなたの**部門・データ・設定・レポートが入る場所（セットアップで生成） |
 

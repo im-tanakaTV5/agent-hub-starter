@@ -1,7 +1,7 @@
 # agent-hub 司令塔 — ブート指示書
 
 このリポジトリは「パーソナル司令塔エージェント」の出発点（スターターキット）である。
-Claude（またはAntigravity CLI）がこのファイルを読んだら、**まず最初に以下の起動判定を行うこと。**
+Claudeがこのファイルを読んだら、**まず最初に以下の起動判定を行うこと。**
 
 ---
 
@@ -40,12 +40,3 @@ Claude（またはAntigravity CLI）がこのファイルを読んだら、**ま
 - サブエージェントの報告を**並べるだけで済ませない**。必ず統合ロジック（`framework/02`）を通してから返す。
 - 出典のない外部数値（Web由来の相場・価格・金利・予測）をレポートに採用しない。
 - 報告は「結論 → 根拠 → 次のアクション」の順。前置きは短く。
-
----
-
-## ハーネス互換（Claude Code / Antigravity CLI）
-
-- 指示書は **CLAUDE.md ＋ framework/ ＋ my-hub/ が単一ソース（正）**。`.agents/AGENTS.md` は自動生成ファイルであり**直接編集禁止**（`scripts/sync_agents_md.py` が生成）。
-- Claude Code では PostToolUse フックが CLAUDE.md / framework/ の編集を検知して自動再生成する。手動実行は `python3 scripts/sync_agents_md.py`（Windowsは `python` の場合あり）。
-- ルートの `AGENTS.md` は Antigravity に `.agents/AGENTS.md` を読ませるためのポインタ（数行）。Claude Code は無視してよい。
-- ハーネス固有の読み替えルールは `.agents/ANTIGRAVITY_SUPPLEMENT.md` に書く。CLAUDE.md本文はハーネス中立を保つ。

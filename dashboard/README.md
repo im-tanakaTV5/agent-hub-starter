@@ -5,18 +5,18 @@
 ## 仕組み
 
 ```
-Claude Code / Antigravity のフック（ツール実行のたびに発火）
+Claude Code のフック（ツール実行のたびに発火）
    └→ dashboard/log_hook.py が dashboard/logs/events.jsonl に1行追記
         └→ dashboard/server.py（Python製・ポート8765）がtailしてブラウザに配信
              └→ dashboard/index.html が描画
 ```
 
 - ログは**サブエージェントの識別情報**（`agent_id`：空なら司令塔、`child_agent_id`：起動された子エージェント）を含み、親子の紐付け＝「どの部門が今動いているか」を可視化できる。
-- log_hook.py は Claude Code と Antigravity CLI 両方のペイロード形式を吸収する。失敗しても本体の動作を止めない設計。
+- log_hook.py は失敗しても本体の動作を止めない設計。
 
 ## セットアップ（Claudeに「ダッシュボードを設定して」と言えば全部やってくれる）
 
-1. **フックの有効化**：`.claude/settings.template.json` の `{{HUB_PATH}}`（このリポジトリの絶対パス）と `{{PYTHON_CMD}}`（`python3` または `python`。Windowsは通常 `python`）を置換し、`.claude/settings.json` として保存する。（Antigravity併用なら `.agents/hooks.template.json` → `.agents/hooks.json` も同様に）
+1. **フックの有効化**：`.claude/settings.template.json` の `{{HUB_PATH}}`（このリポジトリの絶対パス）と `{{PYTHON_CMD}}`（`python3` または `python`。Windowsは通常 `python`）を置換し、`.claude/settings.json` として保存する。
 2. **サーバーの自動起動登録**（OSを自動判定して分岐する）：
    ```bash
    python3 dashboard/install_dashboard.py

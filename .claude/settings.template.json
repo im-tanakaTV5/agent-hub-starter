@@ -21,15 +21,6 @@
             "command": "{{PYTHON_CMD}} {{HUB_PATH}}/dashboard/log_hook.py post_tool"
           }
         ]
-      },
-      {
-        "matcher": "Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "{{PYTHON_CMD}} {{HUB_PATH}}/scripts/claude_md_sync_hook.py"
-          }
-        ]
       }
     ],
     "Stop": [

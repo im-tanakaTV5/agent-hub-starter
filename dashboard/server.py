@@ -168,7 +168,7 @@ def chat_with_gemini(message: str, history: list) -> dict:
     async def _run_agent():
         config = LocalAgentConfig(
             model=target_model,
-            system_instructions="あなたは司令塔エージェント（または指定されたサブエージェント）として振る舞います。必ず ./AGENTS.md や各種 CLAUDE.md に従ってタスクを遂行してください。",
+            system_instructions="あなたは司令塔エージェント（または指定されたサブエージェント）として振る舞います。必ず ./CLAUDE.md・framework/・各 agents/XX/CLAUDE.md に従ってタスクを遂行してください。",
             capabilities=CapabilitiesConfig()
         )
         async with Agent(config) as agent:

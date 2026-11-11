@@ -25,9 +25,10 @@ def get_stats():
     # Prompt character count
     char_count = 0
     prompt_files = []
-    agents_md = base_dir / '.agents' / 'AGENTS.md'
-    if agents_md.exists():
-        prompt_files.append(agents_md)
+    root_md = base_dir / 'CLAUDE.md'
+    if root_md.exists():
+        prompt_files.append(root_md)
+    prompt_files.extend(sorted((base_dir / 'framework').glob('*.md')))
     if agents_dir.exists():
         prompt_files.extend(list(agents_dir.glob('*/CLAUDE.md')))
     shared_proto = base_dir / 'shared' / '共通プロトコル.md'

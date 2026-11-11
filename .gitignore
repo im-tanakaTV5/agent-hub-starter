@@ -3,8 +3,6 @@
 hub.config.json
 .claude/settings.json
 .claude/settings.local.json
-.agents/hooks.json
-.agents/AGENTS.md
 
 # 個人の部門・データ・レポート（構造だけ残す）
 my-hub/*

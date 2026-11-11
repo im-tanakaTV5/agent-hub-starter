@@ -40,7 +40,6 @@
 - **Notion**（既にNotionでデータ管理している人向け）
 - **Claude in Chrome**（Claudeがブラウザ操作を代行）
 - **ダッシュボード**（エージェントの活動をブラウザで眺められる画面）
-- **Antigravity CLI互換**（Claude Code以外のAIツールでも動かしたい人向け。不明ならスキップ）
 
 ---
 
@@ -77,7 +76,6 @@
 - Notion → `integrations/notion.md`
 - Claude in Chrome → `integrations/claude-in-chrome.md`
 - ダッシュボード → `dashboard/README.md`（`python3 dashboard/install_dashboard.py`）
-- Antigravity互換 → `integrations/antigravity.md`（`.agents/hooks.json` 生成＋`python3 scripts/sync_agents_md.py`）
 
 連携は**後回しにしてもよい**。「あとで `integrations/◯◯.md` の設定をやりたい」と言えばいつでも設定できる、と伝える。
 
