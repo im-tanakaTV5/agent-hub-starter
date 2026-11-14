@@ -21,6 +21,13 @@
     "claude_in_chrome": false,
     "dashboard": false
   },
+  "shared_info": {
+    "_comment": "オーナーから預かった情報の記録。項目名は name / age / residence / affiliation / resume / services / writing_samples / health。求め方は setup/情報の預かり方.md",
+    "provided": [],
+    "later": [],
+    "declined": [],
+    "suggested": []
+  },
   "daily_report": {
     "_comment": "毎朝の日次報告（Claude manager）。departments に載せた部門だけが報告する。手順は framework/03_日次報告.md",
     "enabled": false,
