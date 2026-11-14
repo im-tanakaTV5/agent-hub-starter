@@ -18,6 +18,7 @@ reports/*
 dashboard/logs/*
 !dashboard/logs/.gitkeep
 dashboard/session_labels.json
+dashboard/manager/
 dashboard/system_stats.json
 dashboard/server.log
 dashboard/__pycache__/

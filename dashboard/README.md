@@ -28,6 +28,10 @@ Claude Code のフック（ツール実行のたびに発火）
 
 手動で一時的に起動したいだけなら：`python3 dashboard/server.py`（ポート変更は `python3 dashboard/server.py 9000`）。Windowsでは `python3` の代わりに `python` を使う場合がある。
 
+## 日次報告（Claude manager）の表示
+
+日次報告を有効にしていると、Monitor のエージェント一覧の下に「Claude manager」の枠が出て、今日の報告が緊急度ごとに並ぶ。まだ1件も報告が無いあいだは枠ごと出ない。仕組みと設定は `framework/03_日次報告.md`。
+
 ## Galaxy ビュー（http://localhost:8765/galaxy）
 
 ダッシュボード右上の「🌌 Galaxy」から開ける、Obsidianのグラフビュー風の3D可視化。司令塔・エージェント・各CLAUDE.mdの指示セクション・`shared/`や`framework/`配下の全ファイル・Claude Codeの記憶（`[[wikilink]]`込み）を、脳の形に力場で閉じ込めた発光体の集合として描画する。

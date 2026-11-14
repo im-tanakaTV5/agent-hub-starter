@@ -160,6 +160,21 @@
     .es-hdr span{font-size:.66rem;font-weight:600;letter-spacing:.07em;color:var(--text-dimmer);text-transform:uppercase;display:flex;align-items:center}
     .es-list{overflow-y:auto;flex:1}
     .es-list::-webkit-scrollbar{width:2px}
+    /* Claude manager の日次報告。緊急度ごとに段を分け、色を塗った見出しと件数を付ける */
+    .mg-when{font-weight:400;font-variant-numeric:tabular-nums}
+    .mg-empty{padding:12px 14px;color:var(--text-dim);font-size:.78rem}
+    .mg-one{display:flex;align-items:baseline;gap:14px;padding:10px 14px;border-bottom:1px solid var(--border);font-size:.84rem;font-weight:700;color:var(--text)}
+    .mg-one-lbl{flex-shrink:0;font-size:.68rem;font-weight:600;color:var(--text-dim)}
+    .mg-sec{display:flex;align-items:stretch;border-bottom:1px solid var(--border)}
+    .mg-head{width:92px;flex-shrink:0;padding:9px 12px;display:flex;justify-content:space-between;align-items:flex-start;font-size:.78rem;font-weight:700;color:#111;font-variant-numeric:tabular-nums}
+    .mg-sec.red .mg-head{background:var(--red)} .mg-sec.yellow .mg-head{background:var(--yellow)}
+    .mg-sec.green .mg-head{background:var(--green)} .mg-sec.failed .mg-head{background:var(--text-dimmer);color:var(--text)}
+    .mg-items{flex:1;min-width:0}
+    .mg-item{display:grid;grid-template-columns:112px 1fr;gap:2px 14px;padding:8px 14px;font-size:.78rem;line-height:1.55}
+    .mg-item + .mg-item{border-top:1px solid var(--border)}
+    .mg-dept{grid-row:span 2;font-size:.72rem;font-weight:600;padding-top:1px}
+    .mg-title{font-weight:700;color:var(--text)}
+    .mg-body{color:var(--text-dim)}
     .es-row{display:grid;grid-template-columns:22px auto 1fr auto;gap:5px;padding:2px 12px;font-family:var(--font-mono);font-size:.67rem;align-items:center;border-bottom:1px solid #161616}
     .es-row:hover{background:#151515}
     .es-rel{color:var(--text-dimmer);font-size:.62rem;text-align:right}
@@ -446,6 +461,14 @@
       <div class="agent-grid-label">AGENTS</div>
       <div class="agent-main-grid" id="agentGrid">
         <div style="padding:20px;color:var(--text-dimmer);font-size:.8rem">読み込み中…</div>
+      </div>
+      <!-- Claude manager の日次報告。まだ1件も無いあいだは出さない -->
+      <div class="event-strip" id="managerBox" style="display:none">
+        <div class="es-hdr">
+          <span>Claude manager</span>
+          <span class="mg-when" id="managerWhen"></span>
+        </div>
+        <div class="es-list" id="managerList"></div>
       </div>
       <!-- Live Events がカード下の空き領域をすべて埋める -->
       <div class="event-strip" id="liveFeed">
@@ -1277,7 +1300,6 @@ function renderGraph(data) {
 
   // ── 4. Legend ─────────────────────────────────────
   const legend = [
-    { color: '#b8a840', label: '部門長（逐次パイプライン管理）', shape: 'pill' },
     { color: '#ccc',    label: 'エージェント（CLAUDE.md）',     dotR: 2.5    },
     { color: '#52c8c8', label: 'WebSearch / WebFetch',         dotR: 2      },
     { color: OBS_COLOR, label: '◆ Obsidian Vault',            dotR: 2      },
@@ -1522,11 +1544,49 @@ async function loadSystemStats() {
   } catch(e) {}
 }
 
+// Claude manager の日次報告。報告のあった部門だけを、緊急度ごとの段で出す
+async function loadManager() {
+  const box = document.getElementById('managerBox'), list = document.getElementById('managerList'), when = document.getElementById('managerWhen');
+  let d;
+  try { d = await fetch('/api/manager').then(r => r.json()); }
+  catch(e) { return; }
+  const rep = d.report, st = d.status || {};
+  const running = st.state === 'running' ? `集めています ${st.done}/${st.total}` : '';
+  if (!rep && !running) { box.style.display = 'none'; return; }
+  box.style.display = '';
+  if (!rep) {
+    when.textContent = running;
+    list.innerHTML = '<div class="mg-empty">最初の報告を集めています</div>';
+    return;
+  }
+  const g = new Date(rep.generated);
+  const stamp = `${g.getMonth()+1}/${g.getDate()}（${'日月火水木金土'[g.getDay()]}）${g.getHours()}:${String(g.getMinutes()).padStart(2,'0')} 受信`;
+  when.textContent = running ? `${running}（表示は${stamp}）` : stamp;
+  const item = it => `<div class="mg-item"><div class="mg-dept">` +
+    it.depts.map((n, i) => `<div style="color:${deptMeta(n.replace(/\D/g,'')).color}">${esc(it.names[i])}</div>`).join('') +
+    `</div><div class="mg-title">${esc(it.title)}</div><div class="mg-body">${esc(it.body)}</div></div>`;
+  const sec = (level, label) => {
+    const items = rep.items.filter(it => it.level === level);
+    if (!items.length) return '';
+    return `<div class="mg-sec ${level}"><div class="mg-head"><span>${label}</span><span>${items.length}</span></div><div class="mg-items">${items.map(item).join('')}</div></div>`;
+  };
+  let html = rep.hitokoto ? `<div class="mg-one"><span class="mg-one-lbl">今日の一手</span><span>${esc(rep.hitokoto)}</span></div>` : '';
+  html += sec('red', '今日中') + sec('yellow', '今週中') + sec('green', '今月中');
+  if (!rep.items.length && rep.asked > rep.failed.length) html += `<div class="mg-empty">今日は、どの部門からも報告がありません</div>`;
+  if (rep.failed.length) {
+    html += `<div class="mg-sec failed"><div class="mg-head"><span>届かず</span><span>${rep.failed.length}</span></div><div class="mg-items">` +
+      rep.failed.map(f => `<div class="mg-item"><div class="mg-dept">${esc(f.label)}</div><div class="mg-body">${esc(f.reason)}</div></div>`).join('') + '</div></div>';
+  }
+  list.innerHTML = html;
+}
+
 setInterval(()=>{document.getElementById('clock').textContent=new Date().toLocaleTimeString('ja-JP');},1000);
 document.getElementById('clock').textContent=new Date().toLocaleTimeString('ja-JP');
 document.getElementById('panel-monitor').classList.add('active');
 loadSystemStats();
 setInterval(loadSystemStats, 60000);
+loadManager();
+setInterval(loadManager, 30000);
 
 // resize → re-render graph if visible
 window.addEventListener('resize',()=>{

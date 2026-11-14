@@ -10,7 +10,7 @@ Identity capture:
                       tool result's "agentId: X"). Lets the dashboard map agent_id → 部門
                       via the dispatch prompt.
 """
-import sys, json, datetime, re
+import os, sys, json, datetime, re
 from pathlib import Path
 
 # このスクリプト自身の場所からログパスを導出する（どこに置いても動く）
@@ -40,7 +40,8 @@ def main():
     tool_name = data.get("tool_name") or data.get("tool") or ""
     tool_input = data.get("tool_input") or data.get("input") or {}
     session_id = data.get("session_id") or data.get("sessionId") or ""
-    agent_id = data.get("agent_id") or data.get("agentId") or ""
+    # AGENT_HUB_ACTOR は日次報告（scripts/claude_manager.py）が部門ごとに付ける名乗り
+    agent_id = data.get("agent_id") or data.get("agentId") or os.environ.get("AGENT_HUB_ACTOR", "")
 
     # Antigravity CLI payload shape: tool info nested under toolCall.args
     # e.g. .toolCall.args.ToolName / .toolCall.args.CommandLine

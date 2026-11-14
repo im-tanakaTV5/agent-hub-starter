@@ -16,6 +16,9 @@ REPORTS_DIR   = BASE_DIR / 'reports'
 CLAUDE_PROJECTS      = Path.home() / '.claude' / 'projects'
 SESSION_LABELS_FILE  = DASHBOARD_DIR / 'session_labels.json'
 
+sys.path.insert(0, str(BASE_DIR / 'scripts'))
+import claude_manager
+
 _sess_cache:   dict = {'data': None, 'ts': 0.0}
 _sess_labels:  dict = {}
 
@@ -519,6 +522,8 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(list_reports())
         elif path == '/api/graph':
             self._send_json(get_graph())
+        elif path == '/api/manager':
+            self._send_json(claude_manager.latest())
         elif path == '/api/stats':
             stats_path = BASE_DIR / 'dashboard' / 'system_stats.json'
             if stats_path.exists():

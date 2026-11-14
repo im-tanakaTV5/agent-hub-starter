@@ -21,10 +21,14 @@
     "claude_in_chrome": false,
     "dashboard": false
   },
-  "weekly_proposal": {
-    "enabled": true,
-    "trigger": "「週次提案」と入力したときだけ実行（自動起動なし）",
-    "report_retention_days": 5
+  "daily_report": {
+    "_comment": "毎朝の日次報告（Claude manager）。departments に載せた部門だけが報告する。手順は framework/03_日次報告.md",
+    "enabled": false,
+    "time": "07:00",
+    "priorities": "（優先順位を1行で。上ほど優先。例: 健康 ＞ 本業 ＞ 資格の勉強）",
+    "departments": [
+      {"num": "01", "label": "（表示名。例: タスク管理）", "agent": "（agents/ のフォルダ名。例: 01_task-manager）", "model": "haiku"}
+    ]
   },
   "setup_completed": ""
 }
