@@ -38,18 +38,31 @@ def _save_labels():
     except Exception:
         pass
 
-DEPT_LABELS = {
-    '01': 'タスク管理',   '02': 'お金管理',     '03': 'ギター時間管理',
-    '04': '仕事探し',     '05': '仕事実行',     '06': '進路リサーチ',
-    '07': 'AI・IT情報',   '08': '体調管理',     '09': '大学',
-    '10': '資産分析',     '11': '一人暮らし',    '12': '機材資産',
-}
-DEPT_COLORS = {
-    '01': '#7aadff', '02': '#4caf6e', '03': '#c87fff',
-    '04': '#d4a437', '05': '#d4a437', '06': '#52c8c8',
-    '07': '#52c8ff', '08': '#e05252', '09': '#ffb347',
-    '10': '#ffd700', '11': '#ff69b4', '12': '#c89000',
-}
+# 部門の色は番号から決める。名前は hub.config.json の daily_report.departments の表示名、
+# 無ければその部門の最初のエージェントの見出しを使う
+PALETTE = ['#7aadff', '#4caf6e', '#c87fff', '#d4a437', '#e0a020', '#52c8c8',
+           '#52c8ff', '#e05252', '#ffb347', '#ffd700', '#ff69b4', '#c89000']
+
+
+def dept_color(num) -> str:
+    try:
+        return PALETTE[(int(num) - 1) % len(PALETTE)]
+    except (TypeError, ValueError):
+        return '#888'
+
+
+def dept_labels() -> dict:
+    try:
+        conf = json.loads((BASE_DIR / 'hub.config.json').read_text(encoding='utf-8'))
+        rows = conf.get('daily_report', {}).get('departments', [])
+    except (OSError, ValueError):
+        rows = []
+    out = {}
+    for r in rows:
+        m = re.match(r'^(\d+)[a-z]?$', str(r.get('num', '')))
+        if m and r.get('label') and str(r['num']) == m.group(1):
+            out[m.group(1)] = r['label']
+    return out
 
 # ── SSE client registry ──────────────────────────────────────────────────────
 _sse_clients: list[queue.Queue] = []
@@ -138,69 +151,10 @@ def chat_with_claude(message: str, history: list) -> dict:
         return {'error': str(e)}
 
 
-# ── Chat with Gemini (Antigravity Python SDK) ────────────────────────────────
-def chat_with_gemini(message: str, history: list) -> dict:
-    """Run Gemini using the Antigravity Python SDK with dynamic model selection."""
-    import asyncio
-    from google.antigravity import Agent, LocalAgentConfig, CapabilitiesConfig
-
-    # Prepend recent history so Gemini has context
-    if history:
-        hist_lines = []
-        for h in history[-6:]:
-            hist_lines.append(f"User: {h.get('user', '')}")
-            hist_lines.append(f"Assistant: {h.get('assistant', '')}")
-        prompt = "【これまでの会話履歴】\n" + "\n".join(hist_lines) + "\n\n【新しいメッセージ】\n" + message
-    else:
-        prompt = message
-
-    # Keyword-based model routing to mimic Claude Code's tiered approach
-    msg_lower = message.lower()
-    target_model = "gemini-2.5-pro"
-    
-    # Haiku equivalents -> Flash (01_task-manager, 04, 08 etc.)
-    if "01_task-manager" in msg_lower or "haiku" in msg_lower or "04_job-searcher" in msg_lower or "08_health-manager" in msg_lower:
-        target_model = "gemini-2.5-flash"
-    # Opus equivalents -> 3.1 Pro (most capable)
-    elif "opus" in msg_lower or "09_homework" in msg_lower:
-        target_model = "gemini-3.1-pro"
-    # Sonnet equivalents (default) -> 2.5 Pro
-    else:
-        target_model = "gemini-2.5-pro"
-
-    async def _run_agent():
-        config = LocalAgentConfig(
-            model=target_model,
-            system_instructions="あなたは司令塔エージェント（または指定されたサブエージェント）として振る舞います。必ず ./CLAUDE.md・framework/・各 agents/XX/CLAUDE.md に従ってタスクを遂行してください。",
-            capabilities=CapabilitiesConfig()
-        )
-        async with Agent(config) as agent:
-            response = await agent.chat(prompt)
-            full_text = ""
-            async for token in response:
-                full_text += token
-            return full_text
-
-    try:
-        result_text = asyncio.run(_run_agent())
-        result_text = re.sub(r'\x1b\[[0-9;]*m', '', result_text).strip()
-        return {'response': result_text}
-    except Exception as e:
-        return {'error': str(e)}
-
-
-
 # ── Capabilities parser ──────────────────────────────────────────────────────
-DEPT_COLOR = {
-    '01': '#7aadff', '02': '#4caf6e', '03': '#c87fff',
-    '04': '#d4a437', '05': '#d4a437', '06': '#52c8c8',
-    '07': '#52c8ff', '08': '#e05252', '09': '#ffb347',
-    '10': '#ffd700', '11': '#ff69b4', '12': '#c89000',
-}
-
 def _dept_color(folder: str) -> str:
     num = re.match(r'^(\d+)', folder)
-    return DEPT_COLOR.get(num.group(1) if num else '', '#888')
+    return dept_color(num.group(1)) if num else '#888'
 
 def _parse_agent(agent_dir: Path) -> dict | None:
     claude_md = agent_dir / 'CLAUDE.md'
@@ -460,13 +414,17 @@ class Handler(BaseHTTPRequestHandler):
         if path == '/api/chat':
             length = int(self.headers.get('Content-Length', 0))
             body = json.loads(self.rfile.read(length).decode('utf-8'))
-            backend = body.get('backend') or os.environ.get('AGENT_BACKEND', 'claude')
-            if str(backend).lower() == 'gemini':
-                result = chat_with_gemini(body.get('message', ''), body.get('history', []))
-            else:
-                result = chat_with_claude(body.get('message', ''), body.get('history', []))
+            result = chat_with_claude(body.get('message', ''), body.get('history', []))
             _sess_cache['ts'] = 0.0  # new session was created; invalidate list cache
             self._send_json(result)
+        elif path == '/api/manager/done':
+            length = int(self.headers.get('Content-Length', 0))
+            body = json.loads(self.rfile.read(length).decode('utf-8'))
+            key = str(body.get('key', ''))[:300]
+            if not re.match(r'^\d{4}-\d{2}-\d{2}\|.+', key):
+                self._send_json({'error': 'invalid key'}, 400)
+                return
+            self._send_json({'done': claude_manager.set_done(key, bool(body.get('done')))})
         elif path == '/api/read_file':
             length = int(self.headers.get('Content-Length', 0))
             body = json.loads(self.rfile.read(length).decode('utf-8'))
@@ -744,6 +702,7 @@ def build_graph() -> dict:
             }
 
     # Group by department number prefix
+    labels = dept_labels()
     depts: dict = {}
     for folder, info in agents_info.items():
         m = re.match(r'^(\d+)', folder)
@@ -753,8 +712,8 @@ def build_graph() -> dict:
         if num not in depts:
             depts[num] = {
                 'number': num,
-                'label':  DEPT_LABELS.get(num, f'部門{num}'),
-                'color':  DEPT_COLORS.get(num, '#888'),
+                'label':  labels.get(num) or re.sub(r'(エージェント|（.*?）)', '', info['name']).strip() or f'部門{num}',
+                'color':  dept_color(num),
                 'lead':   None,
                 'agents': [],
             }

@@ -66,6 +66,8 @@
 - **Claude in Chrome**（Claudeがブラウザ操作を代行）
 - **ダッシュボード**（エージェントの活動をブラウザで眺められる画面）
 - **日次報告**（毎朝、全部門が担当を確かめて、知らせることがある部門だけがダッシュボードに短く報告する。毎朝、部門の数だけClaudeが動くので、その分の使用量がかかると伝える。ダッシュボードとセットで使う。希望するなら走らせる時刻も聞く）
+- **LINE通知**（日次報告を使う人だけ。毎朝の報告をスマホのLINEに1通で届ける。LINE公式アカウントを自分で作る準備が10分ほど要る。報告の中身がLINEを通ることも伝える）
+- **会話ログからの学習**（日次報告を使う人だけ。毎朝、前日までの会話を読み返し、別々の会話で2回直されたことを覚えて次から守る。会話を読み返す分の使用量が増えると伝える。使い始めて1〜2週間たってから入れてもよい）
 
 ---
 
@@ -92,7 +94,7 @@
    - 分割エージェントは最初は作らない（運用して必要になったら `framework/05` のパターンで増設）。
    - 日次報告を使うなら、各エージェントの「日次報告（Claude manager）」節に、その部門が読むだけで確かめる観点を2〜3個書く。参加させない部門は「参加しない」の1行にする。
 5. **`shared/` のデータ置き場** — 部門ごとにフォルダを作る。既存の記録ファイル（Excel等）があれば置き場所を案内し、なければ空のファイル（見出し行だけのCSV等）を作って記録の型を提案する。
-6. **`hub.config.json`** — `hub.config.example.json` を元に、実際のパス・連携のon/offを記入。`shared_info` には、預かった項目・「あとで」の項目・断られた項目を書く。日次報告を使うなら `daily_report` の `enabled`・`time`・`priorities`（質問2の優先順位を1行に）・`departments`（参加させる部門。`agent` は `agents/` のフォルダ名と一字一句同じにする）も埋める。使わないなら `enabled` を `false`、`departments` を空の配列にする。**`setup_completed` はPhase 4の検証が終わるまで空のままにする。**
+6. **`hub.config.json`** — `hub.config.example.json` を元に、実際のパス・連携のon/offを記入。`shared_info` には、預かった項目・「あとで」の項目・断られた項目を書く。日次報告を使うなら `daily_report` の `enabled`・`time`・`priorities`（質問2の優先順位を1行に）・`departments`（参加させる部門。`agent` は `agents/` のフォルダ名と一字一句同じにする）も埋める。使わないなら `enabled` を `false`、`departments` を空の配列にする。会話ログからの学習を希望されたら `learning.enabled` を `true` にする。**`setup_completed` はPhase 4の検証が終わるまで空のままにする。**
 7. **フック設定** — `.claude/settings.template.json` の `{{HUB_PATH}}`(このリポジトリの絶対パス)と `{{PYTHON_CMD}}`(`python3` が使えるか確認し、なければ `python`。Windowsは通常 `python`)を置換して `.claude/settings.json` を生成（ダッシュボード有効時のみ。無効なら作らない）。
    - **【Windows必須】`{{HUB_PATH}}` は必ずスラッシュ区切りで書く**（例：`C:/Users/taro/agent-hub`）。バックスラッシュ（`C:\Users\...`）をそのまま入れるとJSONのエスケープ文字と衝突して**設定ファイル全体が壊れ、フックが一切動かなくなる**。PythonはWindowsでもスラッシュ区切りのパスをそのまま扱えるので問題ない。生成後は必ずJSONとしてパースできるか検証すること（`{{PYTHON_CMD}} -c "import json;json.load(open('.claude/settings.json'))"` が黙って成功すればOK）。
 
@@ -106,6 +108,7 @@
 - Claude in Chrome → `integrations/claude-in-chrome.md`
 - ダッシュボード → `dashboard/README.md`（`python3 dashboard/install_dashboard.py`）
 - 日次報告 → `framework/03_日次報告.md`（`python3 scripts/install_daily_report.py` で毎朝の自動起動を登録する。Phase 4 の検証が通ってから登録する）
+- LINE通知 → `integrations/line-notify.md`（トークンは導入者が自分でターミナルに入力する。司令塔は受け取らない）
 
 連携は**後回しにしてもよい**。「あとで `integrations/◯◯.md` の設定をやりたい」と言えばいつでも設定できる、と伝える。
 
@@ -119,6 +122,7 @@
    - 普段は話しかけるだけ（司令塔が適切な部門に振り分ける）
    - 日次報告を有効にしたなら、毎朝ダッシュボードに各部門の報告が並ぶ（「今日の報告は？」でも読める）
    - 部門の追加・変更は「◯◯の部門を作りたい」と言えばよい
+   - 出てきたものが違うと思ったら、その場で直してよい。直されたことは覚えて、次から守る
    - 情報はあとからいつでも足せる。今日飛ばした項目も、思い出したときに話してくれれば預かる（急がなくてよい）
 
 ---

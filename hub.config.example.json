@@ -19,7 +19,8 @@
     "google_calendar_id": "",
     "notion": false,
     "claude_in_chrome": false,
-    "dashboard": false
+    "dashboard": false,
+    "line_notify": false
   },
   "shared_info": {
     "_comment": "オーナーから預かった情報の記録。項目名は name / age / residence / affiliation / resume / services / writing_samples / health。求め方は setup/情報の預かり方.md",
@@ -36,6 +37,10 @@
     "departments": [
       {"num": "01", "label": "（表示名。例: タスク管理）", "agent": "（agents/ のフォルダ名。例: 01_task-manager）", "model": "haiku"}
     ]
+  },
+  "learning": {
+    "_comment": "会話ログからの学習。true にすると、毎朝の日次報告の前に前日までの会話を読み返し、別々の会話で2回直されたことをメモリに足す。手順は framework/06_会話ログからの学習.md",
+    "enabled": false
   },
   "setup_completed": ""
 }

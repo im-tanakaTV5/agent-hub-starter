@@ -169,12 +169,22 @@
     .mg-head{width:92px;flex-shrink:0;padding:9px 12px;display:flex;justify-content:space-between;align-items:flex-start;font-size:.78rem;font-weight:700;color:#111;font-variant-numeric:tabular-nums}
     .mg-sec.red .mg-head{background:var(--red)} .mg-sec.yellow .mg-head{background:var(--yellow)}
     .mg-sec.green .mg-head{background:var(--green)} .mg-sec.failed .mg-head{background:var(--text-dimmer);color:var(--text)}
+    .mg-sec.learned .mg-head{background:var(--blue)}
     .mg-items{flex:1;min-width:0}
     .mg-item{display:grid;grid-template-columns:112px 1fr;gap:2px 14px;padding:8px 14px;font-size:.78rem;line-height:1.55}
     .mg-item + .mg-item{border-top:1px solid var(--border)}
     .mg-dept{grid-row:span 2;font-size:.72rem;font-weight:600;padding-top:1px}
     .mg-title{font-weight:700;color:var(--text)}
     .mg-body{color:var(--text-dim)}
+    .mg-item.has-chk{grid-template-columns:112px 1fr 22px}
+    .mg-chk{grid-column:3;grid-row:1 / span 2;align-self:center;justify-self:end;appearance:none;-webkit-appearance:none;width:16px;height:16px;margin:0;border:1.5px solid var(--text-dimmer);border-radius:0;background:var(--bg2);cursor:pointer;display:grid;place-content:center}
+    .mg-chk:hover{border-color:var(--text)}
+    .mg-chk:checked{background:var(--green);border-color:var(--green)}
+    .mg-chk:checked::after{content:'';width:4px;height:8px;border:solid #111;border-width:0 2px 2px 0;transform:translateY(-1px) rotate(45deg)}
+    .mg-item.done .mg-title,.mg-item.done .mg-body,.mg-item.done .mg-dept{opacity:.45}
+    .mg-item.done .mg-title{text-decoration:line-through}
+    .mg-shown{margin-left:12px;padding:0;border:none;background:none;font:inherit;font-weight:400;color:var(--text-dimmer);cursor:pointer;text-decoration:underline;text-underline-offset:2px;text-transform:none;letter-spacing:0}
+    .mg-shown:hover{color:var(--text)}
     .es-row{display:grid;grid-template-columns:22px auto 1fr auto;gap:5px;padding:2px 12px;font-family:var(--font-mono);font-size:.67rem;align-items:center;border-bottom:1px solid #161616}
     .es-row:hover{background:#151515}
     .es-rel{color:var(--text-dimmer);font-size:.62rem;text-align:right}
@@ -465,7 +475,7 @@
       <!-- Claude manager の日次報告。まだ1件も無いあいだは出さない -->
       <div class="event-strip" id="managerBox" style="display:none">
         <div class="es-hdr">
-          <span>Claude manager</span>
+          <span>Claude manager<button class="mg-shown" id="managerShowDone" hidden></button></span>
           <span class="mg-when" id="managerWhen"></span>
         </div>
         <div class="es-list" id="managerList"></div>
@@ -581,15 +591,8 @@ function flashFeedDot(){
 // ══════════════════════════════════════════════════════════════════
 let allEvents=[],sessions={};
 
-// ── 部門メタ（server の DEPT_LABELS/COLORS に対応） ──
-const DEPTS={
-  '01':{label:'タスク管理',color:'#7aadff'},'02':{label:'お金管理',color:'#4caf6e'},
-  '03':{label:'ギター',color:'#c87fff'},  '04':{label:'仕事探し',color:'#d4a437'},
-  '05':{label:'仕事実行',color:'#e0a020'},'06':{label:'進路',color:'#52c8c8'},
-  '07':{label:'AI・IT情報',color:'#52c8ff'},'08':{label:'体調',color:'#e05252'},
-  '09':{label:'大学',color:'#ffb347'},    '10':{label:'資産分析',color:'#ffd700'},
-  '11':{label:'一人暮らし',color:'#ff69b4'},  '12':{label:'機材資産',color:'#c89000'},
-};
+// ── 部門メタ。名前と色は /api/graph（agents/ と hub.config.json）から入る ──
+const DEPTS={};
 const COMMANDER={label:'司令塔',color:'#f5c842'};
 function deptMeta(num){ return DEPTS[num]||{label:'部門'+num,color:'#888'}; }
 
@@ -606,6 +609,7 @@ function shortName(n){ return String(n||'').replace(/エージェント$/,'').re
 function buildAgentReg(g){
   if(!g||!g.departments)return;
   g.departments.forEach(d=>{
+    DEPTS[String(d.number).padStart(2,'0')]={label:d.label,color:d.color};
     const put=(a,lead)=>{ AGENT_REG[String(a.id).toLowerCase()]={short:shortName(a.name),dept:d.number,lead:!!lead}; if(lead)LEAD_DEPTS.add(d.number); };
     if(d.lead)put(d.lead,true);
     (d.agents||[]).forEach(a=>put(a,false));
@@ -626,14 +630,8 @@ function deptFromText(s){
   if(m) return m[1].padStart(2,'0');
   return null;
 }
-// 共有データファイル名 → 部門（CLAUDE.md未読でも最低限の部門を当てる保険）
-const FILE_DEPT=[
-  [/todo|中期目標|長期目標|中長期目標/,'01'],[/家計簿|固定資産台帳/,'02'],
-  [/練習記録/,'03'],[/メールの例/,'05'],[/ai-news|it-news/,'07'],
-  [/睡眠時間|体調|習慣/,'08'],[/文章例|取り組む課題|成績記録|学生便覧/,'09'],
-  [/保有商品リスト|理想の資産/,'10'],[/living|一人暮らし|部屋作り|暮らしメモ|生活コスト|引越しアーカイブ|物件|ライフライン|賃貸|moving/,'11'],
-  [/機材リスト|価格履歴|gear/,'12'],
-];
+// 共有データファイル名 → 部門（CLAUDE.md未読でも部門を当てたいときに [正規表現,'部門番号'] を足す）
+const FILE_DEPT=[];
 function fileDept(s){ s=String(s||''); for(const [re,d] of FILE_DEPT) if(re.test(s)) return d; return null; }
 
 // イベントの実行主体を返す: 'NN'（部門）/ '_cmd'（司令塔）/ '?xxxxxx'（未識別の子）
@@ -815,7 +813,7 @@ function renderAgentGrid(){
       }).join('');
   }
 
-  // 司令塔 + 12部門カード（actor別ロールアップ）
+  // 司令塔 + 部門カード（actor別ロールアップ）
   const cards=[['_cmd',COMMANDER], ...Object.keys(DEPTS).sort().map(n=>[n,deptMeta(n)])];
   const gridHtml=cards.map(([key,m])=>{
     const act=activity[key];
@@ -1191,7 +1189,7 @@ function renderGraph(data) {
 
     if (hasLead) {
       // ── Hierarchical: lead pill as intermediate node ──
-      // "資産分析 部門長エージェント" → "資産分析 部門長"
+      // "◯◯ 部門長エージェント" → "◯◯ 部門長"
       const leadTxt = dept.lead.name.replace(/エージェント$/, '').trim();
       const leadW   = strPx(leadTxt, LEAD_FS) + 22;
       const leadH   = 20;
@@ -1545,40 +1543,90 @@ async function loadSystemStats() {
 }
 
 // Claude manager の日次報告。報告のあった部門だけを、緊急度ごとの段で出す
+let mgData = null, mgShowDone = false;
 async function loadManager() {
-  const box = document.getElementById('managerBox'), list = document.getElementById('managerList'), when = document.getElementById('managerWhen');
   let d;
   try { d = await fetch('/api/manager').then(r => r.json()); }
   catch(e) { return; }
+  mgData = d;
+  renderManager();
+}
+
+// 確認して片づいた報告に印を付ける。印を付けた件は、翌日以降の報告にも出なくなる
+async function markManagerDone(key, done) {
+  const set = new Set(mgData.done || []);
+  done ? set.add(key) : set.delete(key);
+  mgData.done = [...set];
+  renderManager();
+  try {
+    const r = await fetch('/api/manager/done', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({key, done})}).then(r => r.json());
+    if (r.done) { mgData.done = r.done; renderManager(); }
+  } catch(e) { loadManager(); }
+}
+
+document.getElementById('managerList').addEventListener('change', e => {
+  if (e.target.classList.contains('mg-chk')) markManagerDone(e.target.dataset.key, e.target.checked);
+});
+document.getElementById('managerShowDone').addEventListener('click', () => { mgShowDone = !mgShowDone; renderManager(); });
+
+function renderManager() {
+  const d = mgData;
+  const box = document.getElementById('managerBox'), list = document.getElementById('managerList'), when = document.getElementById('managerWhen');
+  const showBtn = document.getElementById('managerShowDone');
   const rep = d.report, st = d.status || {};
+  // 会話ログから覚えたこと。番号は取り消すときに使う
+  const lr = d.learned;
+  let learned = '';
+  if (lr) {
+    const row = (kind, e, body) => `<div class="mg-item"><div class="mg-dept">${kind} #${e.id}</div><div class="mg-title">${esc(e.title)}</div><div class="mg-body">${esc(body)}</div></div>`;
+    const rows = lr.learned.map(e => row('覚えた', e, e.hook || '')).concat(
+      lr.sharpened.map(e => row('書き直した', e, '覚えていたのに、また直されたため')),
+      lr.automation.map(e => row('自動化の候補', e, `${e.times}回、手で頼まれています`)));
+    learned = `<div class="mg-sec learned"><div class="mg-head"><span>学習</span><span>${rows.length}</span></div><div class="mg-items">${rows.join('')}</div></div>`;
+  }
   const running = st.state === 'running' ? `集めています ${st.done}/${st.total}` : '';
-  if (!rep && !running) { box.style.display = 'none'; return; }
+  if (!rep && !running && !learned) { box.style.display = 'none'; return; }
   box.style.display = '';
   if (!rep) {
+    showBtn.hidden = true;
     when.textContent = running;
-    list.innerHTML = '<div class="mg-empty">最初の報告を集めています</div>';
+    list.innerHTML = learned || '<div class="mg-empty">最初の報告を集めています</div>';
     return;
   }
   const g = new Date(rep.generated);
   const stamp = `${g.getMonth()+1}/${g.getDate()}（${'日月火水木金土'[g.getDay()]}）${g.getHours()}:${String(g.getMinutes()).padStart(2,'0')} 受信`;
   when.textContent = running ? `${running}（表示は${stamp}）` : stamp;
-  const item = it => `<div class="mg-item"><div class="mg-dept">` +
+  const doneSet = new Set(d.done || []);
+  const keyOf = it => `${rep.date}|${it.title}`;
+  const nDone = rep.items.filter(it => doneSet.has(keyOf(it))).length;
+  if (!nDone) mgShowDone = false;
+  showBtn.hidden = !nDone;
+  showBtn.textContent = mgShowDone ? '解決済みを隠す' : `解決済み ${nDone}件を表示`;
+  const item = it => {
+    const k = keyOf(it), done = doneSet.has(k);
+    return `<div class="mg-item has-chk${done ? ' done' : ''}"><div class="mg-dept">` +
     it.depts.map((n, i) => `<div style="color:${deptMeta(n.replace(/\D/g,'')).color}">${esc(it.names[i])}</div>`).join('') +
-    `</div><div class="mg-title">${esc(it.title)}</div><div class="mg-body">${esc(it.body)}</div></div>`;
+    `</div><div class="mg-title">${esc(it.title)}</div><div class="mg-body">${esc(it.body)}</div>` +
+    `<input type="checkbox" class="mg-chk" data-key="${esc(k)}" ${done ? 'checked' : ''} title="${done ? '外すと解決済みから戻す' : '確認して解決したら印を付けて隠す'}"></div>`;
+  };
   const sec = (level, label) => {
-    const items = rep.items.filter(it => it.level === level);
+    const items = rep.items.filter(it => it.level === level && (mgShowDone || !doneSet.has(keyOf(it))));
     if (!items.length) return '';
     return `<div class="mg-sec ${level}"><div class="mg-head"><span>${label}</span><span>${items.length}</span></div><div class="mg-items">${items.map(item).join('')}</div></div>`;
   };
   let html = rep.hitokoto ? `<div class="mg-one"><span class="mg-one-lbl">今日の一手</span><span>${esc(rep.hitokoto)}</span></div>` : '';
   html += sec('red', '今日中') + sec('yellow', '今週中') + sec('green', '今月中');
   if (!rep.items.length && rep.asked > rep.failed.length) html += `<div class="mg-empty">今日は、どの部門からも報告がありません</div>`;
+  else if (rep.items.length && nDone === rep.items.length && !mgShowDone) html += `<div class="mg-empty">今日の報告はすべて解決済みです</div>`;
   if (rep.failed.length) {
     html += `<div class="mg-sec failed"><div class="mg-head"><span>届かず</span><span>${rep.failed.length}</span></div><div class="mg-items">` +
       rep.failed.map(f => `<div class="mg-item"><div class="mg-dept">${esc(f.label)}</div><div class="mg-body">${esc(f.reason)}</div></div>`).join('') + '</div></div>';
   }
-  list.innerHTML = html;
+  list.innerHTML = html + learned;
 }
+
+// 部門の名前と色を先に入れておく（Graphタブを開く前でもカードが並ぶように）
+fetch('/api/graph').then(r => r.json()).then(g => { buildAgentReg(g); renderAgentGrid(); }).catch(() => {});
 
 setInterval(()=>{document.getElementById('clock').textContent=new Date().toLocaleTimeString('ja-JP');},1000);
 document.getElementById('clock').textContent=new Date().toLocaleTimeString('ja-JP');

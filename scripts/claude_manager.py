@@ -90,17 +90,25 @@ def ask_claude(prompt, model, cwd, tools, actor=""):
     return data.get("result", ""), None
 
 
-def dept_prompt(dept, today, yesterday_item):
+ACK_RULE = ("この件は本人がもう知っている。新しい期限・新しい出来事・数字の新しい悪化が無い限り、もう報告しない。"
+            "日数が延びただけ・同じ数字の言い直しは新しい事実ではない")
+
+
+def dept_prompt(dept, today, yesterday_item, acked=()):
     if yesterday_item:
         prev = f"{yesterday_item['title']}／{yesterday_item['body']}"
     else:
         prev = "なし"
+    ack = ""
+    if acked:
+        ack = "補足: 本人が確認済みの印を付けた報告＝" + " ｜ ".join(acked) + f"（{ACK_RULE}）\n"
     return (
         f"【委任】{dept['agent']} エージェント\n"
         f"必読: まず agents/{dept['agent']}/CLAUDE.md と shared/共通プロトコル.md と "
         f"shared/共通プロトコル_日次報告.md をReadし従うこと\n"
         f"指示: 【日次報告】を実行（今日は{today.isoformat()}（{WEEK[today.weekday()]}））\n"
         f"補足: 昨日この部門が出した報告＝{prev}\n"
+        + ack
     )
 
 
@@ -143,8 +151,8 @@ def evidence_ok(paths):
     return False
 
 
-def run_dept(dept, today, yesterday_item):
-    text, err = ask_claude(dept_prompt(dept, today, yesterday_item), dept["model"], HUB,
+def run_dept(dept, today, yesterday_item, acked=()):
+    text, err = ask_claude(dept_prompt(dept, today, yesterday_item, acked), dept["model"], HUB,
                            ["Read", "Glob", "Grep", "Bash"], actor="cm-" + dept["agent"])
     base = {"dept": dept["num"], "label": dept["label"]}
     if err:
@@ -168,6 +176,7 @@ MANAGER_PROMPT = """あなたは「Claude manager」。各部門から届いた�
 - 報告に書かれていない事実・数字を足さない。推測で埋めない。
 - 同じ根の話が複数部門から来ていたら1件にまとめ、depts に部門番号を並べる。
 - 緊急度は全体を見て付け直してよい（red=今日中／yellow=今週中／green=今月中）。
+- 部門の報告にある区別の語（何の記録か・どの案件か）は削らずに残す。短くするときも、何の話か分からなくしない。
 - title は30字以内、body は80字以内。数字と期限を残し、敬語で言い切る。4桁以上の数字はカンマ区切り。
 - title は「何が起きているか」を書く。「〜する」「〜を決める」のような指図の形にしない。
 - 本人が決めること（いつ作る・いつ練習する・何から始める）に期限や段取りを付けない。報告に無い手順を作らない。
@@ -181,16 +190,21 @@ MANAGER_PROMPT = """あなたは「Claude manager」。各部門から届いた�
 """
 
 
-def manage(reports):
+def manage(reports, acked=None):
     """重複をまとめて並べ直す。失敗したら部門の報告をそのまま使う。"""
     order = {"red": 0, "yellow": 1, "green": 2}
     plain = sorted(
         [{"depts": [r["dept"]], "level": r["level"], "title": r["title"], "body": r["body"]} for r in reports],
         key=lambda i: order[i["level"]])
-    if len(reports) < 2:
+    acked = {d: v for d, v in (acked or {}).items() if any(r["dept"] == d for r in reports)}
+    if len(reports) < 2 and not acked:
         return "", plain, None
     lines = "\n".join(
         f"- 部門{r['dept']} {r['label']}／緊急度{r['level']}／見出し: {r['title']}／本文: {r['body']}" for r in reports)
+    if acked:
+        # 部門が同じ件をまた出してきたときの二重の網
+        lines += ("\n\n本人が確認済みの印を付けた報告（同じ件が上に届いていたら items から外す。" + ACK_RULE + "）:\n"
+                  + "\n".join(f"- 部門{d}: {a}" for d, v in acked.items() for a in v))
     with tempfile.TemporaryDirectory() as tmp:
         head = MANAGER_PROMPT.format(priorities=load_config().get("priorities") or "指定なし")
         text, err = ask_claude(head + lines, "sonnet", tmp, None)
@@ -224,6 +238,21 @@ def write_json(path, data):
     os.replace(tmp, path)
 
 
+def learn():
+    """報告を集める前に、会話ログからの学習を走らせる（hub.config.json の learning.enabled が true のときだけ）。"""
+    try:
+        on = json.loads(CONFIG.read_text(encoding="utf-8")).get("learning", {}).get("enabled")
+    except (OSError, ValueError):
+        on = False
+    if not on:
+        return
+    try:
+        import session_learner
+        session_learner.run(None, False)
+    except Exception as e:
+        print("会話ログからの学習に失敗（報告は続ける）:", str(e)[:200], flush=True)
+
+
 def run(force, only):
     if not DEPTS:
         print("報告させる部門がない（hub.config.json の daily_report.departments を確かめる）")
@@ -235,6 +264,7 @@ def run(force, only):
         print("今日の分はもうある")
         return 0
 
+    learn()
     depts = [d for d in DEPTS if not only or d["num"] in only]
     prev = {}
     last = latest_file(before=today.isoformat())
@@ -246,9 +276,10 @@ def run(force, only):
     started = datetime.datetime.now().isoformat(timespec="seconds")
     write_json(STATUS, {"state": "running", "started": started, "done": 0, "total": len(depts)})
     results = []
+    acked = acked_by_dept()
     try:
         with concurrent.futures.ThreadPoolExecutor(PARALLEL) as pool:
-            jobs = [pool.submit(run_dept, d, today, prev.get(d["num"])) for d in depts]
+            jobs = [pool.submit(run_dept, d, today, prev.get(d["num"]), acked.get(d["num"], ())) for d in depts]
             for job in concurrent.futures.as_completed(jobs):
                 results.append(job.result())
                 write_json(STATUS, {"state": "running", "started": started,
@@ -258,7 +289,7 @@ def run(force, only):
 
         results.sort(key=lambda r: [d["num"] for d in DEPTS].index(r["dept"]))
         reports = [r for r in results if r["result"] == "report"]
-        hitokoto, items, note = manage(reports)
+        hitokoto, items, note = manage(reports, acked)
         write_json(target, {
             "date": today.isoformat(),
             "generated": datetime.datetime.now().isoformat(timespec="seconds"),
@@ -270,6 +301,15 @@ def run(force, only):
             "asked": len(results),
             "depts": results,
         })
+        # スマホへ通知（設定してあるときだけ）。送れなくても報告そのものは残す
+        try:
+            import phone_notify
+            sent = phone_notify.send_report(json.loads(target.read_text(encoding="utf-8")),
+                                            {d["num"]: d["label"] for d in DEPTS})
+            if sent:
+                print(f"スマホ（LINE）へ {sent}件", flush=True)
+        except Exception as e:
+            print("スマホへの通知に失敗:", str(e)[:200], flush=True)
     finally:
         write_json(STATUS, {"state": "idle"})
 
@@ -295,10 +335,65 @@ def latest():
         out["status"] = json.loads(STATUS.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         pass
+    # 会話ログから覚えたこと（scripts/session_learner.py。使っていなければ None）
+    try:
+        import session_learner
+        out["learned"] = session_learner.latest()
+    except Exception:
+        out["learned"] = None
+    out["done"] = sorted(read_done())
     return out
 
 
+# ダッシュボードで「確認して片づいた」と印を付けた報告。キーは「日付|見出し」
+DONE = OUT / "done.json"
+
+
+def read_done():
+    try:
+        return json.loads(DONE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def acked_by_dept():
+    """本人が印を付けた報告を部門ごとに返す。翌日以降、同じ件をまた出させないために部門へ渡す。"""
+    out = {}
+    for key in sorted(read_done()):
+        day, _, title = key.partition("|")
+        try:
+            data = json.loads((OUT / f"{day}.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        for it in data.get("items", []):
+            if it["title"] == title:
+                for d in it["depts"]:
+                    out.setdefault(d, []).append(f"{day[5:].replace('-', '/')}に確認: {it['title']}／{it['body']}")
+    return {d: v[-4:] for d, v in out.items()}
+
+
+def set_done(key, done):
+    marks = read_done()
+    if done:
+        marks[key] = datetime.datetime.now().isoformat(timespec="seconds")
+    else:
+        marks.pop(key, None)
+    # 印は翌日以降の報告を止めるのにも使う。元の報告ファイルが消える日数まで持つ
+    cut = (datetime.date.today() - datetime.timedelta(days=KEEP_DAYS)).isoformat()
+    marks = {k: v for k, v in marks.items() if k.split("|", 1)[0] >= cut}
+    OUT.mkdir(parents=True, exist_ok=True)
+    write_json(DONE, marks)
+    return sorted(marks)
+
+
 def show():
+    try:
+        import session_learner
+        if session_learner.latest():
+            session_learner.show()
+            print()
+    except Exception:
+        pass
     rep = latest()["report"]
     if not rep:
         print("まだ報告がない")
