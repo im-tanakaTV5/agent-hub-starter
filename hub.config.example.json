@@ -23,7 +23,7 @@
     "line_notify": false
   },
   "shared_info": {
-    "_comment": "オーナーから預かった情報の記録。項目名は name / age / residence / affiliation / resume / services / writing_samples / health。求め方は setup/情報の預かり方.md",
+    "_comment": "オーナーから預かった情報の記録。項目名は name / age / residence / affiliation / resume / services / writing_samples / health / payments / belongings / income_costs / assets。求め方は setup/情報の預かり方.md",
     "provided": [],
     "later": [],
     "declined": [],
